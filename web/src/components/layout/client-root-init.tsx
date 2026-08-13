@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { createModelChannel, useConfigStore } from "@/stores/use-config-store";
 import { usePromptSourceScheduler } from "@/hooks/use-prompt-source-scheduler";
+import { useUsa0AuthStore } from "@/stores/use-usa0-auth-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
@@ -13,8 +14,13 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const config = useConfigStore((state) => state.config);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const initializeUsa0Auth = useUsa0AuthStore((state) => state.initialize);
 
     usePromptSourceScheduler();
+
+    useEffect(() => {
+        void initializeUsa0Auth();
+    }, [initializeUsa0Auth]);
 
     useEffect(() => {
         if (handledConfigParams.current) return;

@@ -1,4 +1,6 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import os from "node:os";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,8 +69,9 @@ export class CodexAppClient {
 
     /** 启动并初始化 Codex app-server。 */
     static async start(emit: AgentEmit, onExit: () => void) {
-        logger.info("Starting Codex app-server", { executable: process.execPath, codex: codexBin() });
-        const child = spawn(process.execPath, [codexBin(), "app-server", "--stdio"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+        const launch = codexLaunch();
+        logger.info("Starting Codex app-server", { executable: launch.command, codex: launch.args[0] || launch.command });
+        const child = spawn(launch.command, [...launch.args, "app-server", "--stdio"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
         const client = new CodexAppClient(child, emit);
         let stopped = false;
         const stop = () => {
@@ -890,7 +893,50 @@ function parseMaybeJson(value: unknown) {
     }
 }
 
-/** 定位当前依赖中 Codex CLI 的执行文件。 */
-function codexBin() {
-    return path.join(path.dirname(require.resolve("@openai/codex/package.json")), "bin", "codex.js");
+/** 优先直接运行平台二进制，避免 optional dependency 元数据缺失导致 JS 启动器退出。 */
+function codexLaunch() {
+    const packageRoot = path.dirname(require.resolve("@openai/codex/package.json"));
+    const target = codexTarget();
+    if (target) {
+        const packageName = `codex-${target.platform}-${target.arch}`;
+        let platformRoot = path.join(packageRoot, "..", packageName);
+        try {
+            platformRoot = path.dirname(require.resolve(`@openai/${packageName}/package.json`));
+        } catch {
+            // npm may leave the platform binary usable while omitting alias package metadata.
+        }
+        const executable = path.join(platformRoot, "vendor", target.triple, "bin", process.platform === "win32" ? "codex.exe" : "codex");
+        if (usableCodex(executable)) return { command: executable, args: [] as string[] };
+    }
+    const local = localCodexCandidates().find(usableCodex);
+    if (local) return { command: local, args: [] as string[] };
+    return { command: process.execPath, args: [path.join(packageRoot, "bin", "codex.js")] };
+}
+
+function localCodexCandidates() {
+    const candidates = [process.env.CODEX_CLI_PATH || ""];
+    if (process.platform === "win32") {
+        const root = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "OpenAI", "Codex", "bin");
+        try {
+            candidates.push(...readdirSync(root).map((name) => path.join(root, name, "codex.exe")));
+        } catch {
+            // Codex Desktop is optional; the bundled CLI remains the final fallback.
+        }
+    }
+    return candidates.filter(Boolean);
+}
+
+function usableCodex(executable: string) {
+    if (!existsSync(executable)) return false;
+    return spawnSync(executable, ["--version"], { encoding: "utf8", timeout: 5_000, windowsHide: true }).status === 0;
+}
+
+function codexTarget() {
+    const platform = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : process.platform === "linux" ? "linux" : "";
+    const arch = process.arch === "x64" ? "x64" : process.arch === "arm64" ? "arm64" : "";
+    if (!platform || !arch) return null;
+    const triple = platform === "win32" ? `${arch === "x64" ? "x86_64" : "aarch64"}-pc-windows-msvc`
+        : platform === "darwin" ? `${arch === "x64" ? "x86_64" : "aarch64"}-apple-darwin`
+            : `${arch === "x64" ? "x86_64" : "aarch64"}-unknown-linux-musl`;
+    return { platform, arch, triple };
 }

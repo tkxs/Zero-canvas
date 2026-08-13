@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
 import i18n from "@/i18n";
+import { useUsa0RuntimeApiKey } from "@/services/api/usa0-runtime";
 
 export type ApiCallFormat = "openai" | "gemini" | "ark";
 export type ModelCapability = "image" | "video" | "text" | "audio";
@@ -11,7 +12,7 @@ export type ReasoningEffort = "auto" | "low" | "medium" | "high" | "xhigh";
 
 export type ChannelModel = {
     name: string;
-    capability: ModelCapability;
+    capabilities: ModelCapability[];
     script?: string;
 };
 
@@ -22,6 +23,7 @@ export type ModelChannel = {
     apiKey: string;
     apiFormat: ApiCallFormat;
     models: ChannelModel[];
+    source: "manual" | "usa0";
 };
 
 export type AiConfig = {
@@ -63,6 +65,7 @@ export type WebdavSyncConfig = {
 export type ConfigTabKey = "channels" | "preferences" | "prompt-sources" | "webdav" | "local-storage";
 
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
+export const USA0_CHANNEL_ID = "usa0-website";
 const CHANNEL_MODEL_SEPARATOR = "::";
 const OPENAI_BASE_URL = "https://api.openai.com";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -81,11 +84,12 @@ export const defaultConfig: AiConfig = {
             apiKey: "",
             apiFormat: "openai",
             models: [
-                { name: "gpt-image-2", capability: "image" },
-                { name: "grok-imagine-video", capability: "video" },
-                { name: "gpt-5.5", capability: "text" },
-                { name: "gpt-4o-mini-tts", capability: "audio" },
+                { name: "gpt-image-2", capabilities: ["image"] },
+                { name: "grok-imagine-video", capabilities: ["video"] },
+                { name: "gpt-5.5", capabilities: ["text"] },
+                { name: "gpt-4o-mini-tts", capabilities: ["audio"] },
             ],
+            source: "manual",
         },
     ],
     model: "default::gpt-image-2",
@@ -155,12 +159,12 @@ function findChannelModel(config: AiConfig, value: string): { channel: ModelChan
 }
 
 export function modelCapabilityOf(config: AiConfig, value: string): ModelCapability | undefined {
-    return findChannelModel(config, value)?.model.capability;
+    return findChannelModel(config, value)?.model.capabilities[0];
 }
 
 export function modelMatchesCapability(config: AiConfig, value: string, capability?: ModelCapability) {
     if (!capability) return true;
-    return modelCapabilityOf(config, value) === capability;
+    return Boolean(findChannelModel(config, value)?.model.capabilities.includes(capability));
 }
 
 export function resolveModelForCapability(config: AiConfig, currentModel: string | undefined, capability: ModelCapability) {
@@ -173,7 +177,7 @@ export function resolveModelForCapability(config: AiConfig, currentModel: string
 
 export function selectableModelsByCapability(config: AiConfig, capability?: ModelCapability) {
     if (!capability) return config.models;
-    return config.channels.flatMap((channel) => channel.models.filter((model) => model.capability === capability).map((model) => encodeChannelModel(channel.id, model.name)));
+    return config.channels.flatMap((channel) => channel.models.filter((model) => model.capabilities.includes(capability)).map((model) => encodeChannelModel(channel.id, model.name)));
 }
 
 /** The user script (if any) attached to a model; empty string means use the system default call. */
@@ -215,7 +219,7 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
-            partialize: (state) => ({ config: state.config, webdav: state.webdav }),
+            partialize: (state) => ({ config: sanitizeConfigSecrets(state.config), webdav: state.webdav }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
@@ -256,7 +260,15 @@ export const useConfigStore = create<ConfigStore>()(
 
 export function useEffectiveConfig() {
     const config = useConfigStore((state) => state.config);
-    return useMemo(() => ({ ...config, channelMode: "local" as const }), [config]);
+    const usa0ApiKey = useUsa0RuntimeApiKey();
+    return useMemo(
+        () => ({
+            ...config,
+            channelMode: "local" as const,
+            channels: config.channels.map((channel) => (channel.source === "usa0" ? { ...channel, apiKey: usa0ApiKey } : channel)),
+        }),
+        [config, usa0ApiKey],
+    );
 }
 
 /** Normalize a mixed list of raw model names or model objects into deduped ChannelModel entries. */
@@ -267,9 +279,9 @@ export function normalizeChannelModels(models: Array<string | ChannelModel> | un
         const name = (typeof item === "string" ? item : item?.name || "").trim();
         if (!name || seen.has(name)) continue;
         seen.add(name);
-        const capability = typeof item === "string" ? guessCapability(name) : item.capability || guessCapability(name);
+        const capabilities = typeof item === "string" ? [guessCapability(name)] : normalizeCapabilities(item.capabilities, name);
         const script = typeof item === "string" ? undefined : item.script?.trim() || undefined;
-        result.push({ name, capability, script });
+        result.push({ name, capabilities, script });
     }
     return result;
 }
@@ -283,6 +295,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         apiKey: channel?.apiKey || "",
         apiFormat,
         models: normalizeChannelModels(channel?.models),
+        source: channel?.source === "usa0" ? "usa0" : "manual",
     };
 }
 
@@ -331,7 +344,7 @@ export function resolveModelChannel(config: AiConfig, value: string) {
     const decoded = decodeChannelModel(value);
     const model = decoded?.model || value;
     const matched = decoded ? config.channels.find((channel) => channel.id === decoded.channelId) : config.channels.find((channel) => channel.models.some((item) => item.name === model));
-    return matched || config.channels[0] || createModelChannel({ id: "default", name: i18n.t("config.channels.defaultName"), baseUrl: config.baseUrl, apiKey: config.apiKey, apiFormat: config.apiFormat, models: config.models.map(modelOptionName).map((name) => ({ name, capability: guessCapability(name) })) });
+    return matched || config.channels[0] || createModelChannel({ id: "default", name: i18n.t("config.channels.defaultName"), baseUrl: config.baseUrl, apiKey: config.apiKey, apiFormat: config.apiFormat, models: config.models.map(modelOptionName).map((name) => ({ name, capabilities: [guessCapability(name)] })) });
 }
 
 export function resolveModelRequestConfig(config: AiConfig, value: string) {
@@ -378,6 +391,19 @@ export function defaultBaseUrlForApiFormat(apiFormat: ApiCallFormat) {
 
 function normalizeApiFormat(apiFormat: unknown): ApiCallFormat {
     return apiFormat === "gemini" || apiFormat === "ark" ? apiFormat : "openai";
+}
+
+function normalizeCapabilities(capabilities: ModelCapability[] | undefined, name: string) {
+    const allowed: ModelCapability[] = ["image", "video", "text", "audio"];
+    const values = Array.from(new Set((capabilities || []).filter((value): value is ModelCapability => allowed.includes(value))));
+    return values.length ? values : [guessCapability(name)];
+}
+
+export function sanitizeConfigSecrets(config: AiConfig): AiConfig {
+    return {
+        ...config,
+        channels: config.channels.map((channel) => (channel.source === "usa0" ? { ...channel, apiKey: "" } : channel)),
+    };
 }
 
 function uniqueModelOptions(models: string[]) {

@@ -11,8 +11,10 @@ import ImagePage from "@/pages/image";
 import NotFound from "@/pages/not-found";
 import PromptsPage from "@/pages/prompts";
 import VideoPage from "@/pages/video";
+import OAuthCallbackPage from "@/pages/oauth/callback";
 
 export const router = createBrowserRouter([
+    { path: "/oauth/callback", element: <OAuthCallbackPage /> },
     {
         element: (
             <UserLayout>

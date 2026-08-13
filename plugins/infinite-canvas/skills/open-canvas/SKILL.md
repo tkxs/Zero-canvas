@@ -1,48 +1,34 @@
 ---
 name: open-canvas
-description: 打开 USA零 在线或本地画布，并自动连接本地 Canvas Agent。用户要求打开、启动、进入或使用 USA零 画布时使用。
+description: 打开本地 USA零 画布，并自动连接本地 Canvas Agent。用户要求打开、启动、进入或使用 USA零 画布时使用。
 ---
 
 # Open USA零
 
-默认打开在线版。只有用户明确要求使用本地项目时，才启动本地前端。
+始终打开运行在 `http://localhost:3000` 的本地前端，不使用线上站点。
 
-## 在线版
+## 打开本地画布
 
-1. 启动本地 Canvas Agent 并保持运行：
-
-```bash
-npx -y @basketikun/canvas-agent
-```
-
-2. 从启动输出取得 `Local URL` 和 `Connect token`。
-
-3. 在 Codex 右侧浏览器打开：
-
-```text
-https://usa0.top/canvas?mode=new&agentUrl=<Local URL>&agentToken=<Connect token>
-```
-
-## 本地版
-
-1. 在 USA零 项目中启动前端，并使用 Vite 输出的 `Local` 地址：
+1. 确认 USA零 Web 前端已经运行在 `http://localhost:3000`。如果尚未运行，在项目根目录启动：
 
 ```bash
 cd web
 bun install
-bun run dev
+bun run dev -- --port 3000
 ```
 
-2. 启动本地 Canvas Agent：
+2. 启动本地 Canvas Agent 并保持运行：
 
 ```bash
 npx -y @basketikun/canvas-agent
 ```
 
-3. 从启动输出取得 `Local URL` 和 `Connect token`，在 Codex 右侧浏览器打开：
+3. 从启动输出取得 `Local URL` 和 `Connect token`。
+
+4. 在 Codex 右侧浏览器打开：
 
 ```text
-<Vite Local 地址>/canvas?mode=new&agentUrl=<Local URL>&agentToken=<Connect token>
+http://localhost:3000/canvas?mode=new&agentUrl=<Local URL>&agentToken=<Connect token>
 ```
 
 ## MCP 与连接地址
