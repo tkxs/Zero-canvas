@@ -5,6 +5,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 # 待测试
 
+- Codex 插件离线安装：在本地 Vite、Docker 和正式静态部署的「连接本地 Agent」页下载插件 ZIP，文件名应包含插件版本，且包内保留 `.agents/plugins/marketplace.json`、完整 `plugins/infinite-canvas`、`install.ps1`、`install.sh` 和根目录说明。分别在 Windows 与 macOS/Linux 验证安装脚本、手动命令、重复更新、Codex 未安装及安装失败提示；安装后新建 Codex 任务应能加载两个画布 Skill 和 Canvas Agent MCP，其他插件与 Marketplace 不受影响。检查浅色、深色、窄面板、中英文、系统默认选项、命令复制和下载失败提示。
+- 画布异常素材恢复：打开包含已丢失、损坏或无法读取的本地图片、视频、音频及对话附件的旧画布时，页面最多等待数秒后应进入画布，不得永久停留在骨架屏；可读取的节点和素材应正常显示，异常素材使用已保存内容兜底，画布数据不得被清空或覆盖。
 - USA零账号授权与网站模型：分别从 `http://localhost:3000` 和 `http://127.0.0.1:3000` 验证顶部账号入口直接打开 `usa0.top` 原生授权页，不再出现空白弹窗闪退；网站已有登录态时应跳过登录表单但仍展示授权确认，未登录时密码、TOTP、OAuth、Passkey 登录应继续进入同一 PKCE 授权流程。拒绝授权、关闭弹窗、伪造 state、请求超时、网站不可达、授权过期、CORS 配置缺失及多标签刷新凭证轮换均应安全失败且不影响手动渠道。登录后，停用、过期、未分组和配额耗尽的 Key 应显示禁用原因；选择一个有效的已有 Key 后，应原子创建只读「USA零网站」渠道，且只包含该 Key 精确分组下的模型；切换 Key 时仍存在的网站默认模型应保留，仅已消失的网站默认模型回退，手动渠道默认模型不得被覆盖。刷新模型、刷新页面、Key 失效、切换 Key 和退出登录应正确更新或移除网站渠道，且不得删除网站上的 Key。真实验证文本和图片继续走现有 OpenAI 兼容接口，Grok 视频使用 `/v1/videos/generations`、`/v1/videos/:request_id` 和 `/content`；浅色、深色、移动端、配置导出、WebDAV 数据、日志、URL 与浏览器存储中不得泄露网站登录 token、应用 access/refresh token 或独立认证存储/运行时内存之外的完整 API Key。
 - USA零 品牌与官方入口：Web 应用、文档站、README、Canvas Agent 和 Codex 插件应统一显示 USA零 与新 Logo；官网入口应打开 `https://usa0.top`，GitHub 应打开 `tkxs/Zero-canvas`，Q群入口应复制 `1084450051`；页面不应再出现旧官网、旧群、旧邮箱、赞助商、趋势榜单、Star 历史图或旧社区推广入口。版本弹窗应从当前 GitHub 仓库 `main` 分支读取 `VERSION` 与 `CHANGELOG.md`，请求失败时继续显示构建时注入的本地版本与更新日志；`infinite-canvas` 本地存储、导入导出、MCP、插件 SDK 和 `@basketikun/canvas-agent` 安装命令仍应保持可用。
 - Codex 插件本地打开：USA零 Web 前端运行在 3000 端口且本地 Canvas Agent 已提供连接地址与 token 后，`open-canvas` 应打开带连接参数的 `http://localhost:3000/canvas`，不得回退到线上站点。

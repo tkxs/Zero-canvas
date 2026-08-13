@@ -44,29 +44,28 @@ export async function resolveMetadataReferences(metadata: CanvasNodeMetadata) {
 
 export async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
     return Promise.all(
-        nodes.map(async (node) => {
+        nodes.map((node) => withHydrationFallback((async () => {
             const content = node.metadata?.content;
             if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
             if (node.type !== CanvasNodeType.Image || !content) return node;
-            const images = await Promise.all((node.metadata.images || []).map(async (image) => (image.content ? { ...image, content: await resolveImageUrl(image.storageKey, image.content) } : image)));
+            const images = await Promise.all((node.metadata.images || []).map((image) => (image.content ? withHydrationFallback(resolveImageUrl(image.storageKey, image.content).then((resolved) => ({ ...image, content: resolved })), image) : image)));
             if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content), images } };
             if (!content.startsWith("data:image/")) return node;
             return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
-        }),
+        })(), node)),
     );
 }
 
 export async function hydrateAssistantImages(sessions: CanvasAssistantSession[]) {
     const hydrateItem = async <T extends { dataUrl?: string; storageKey?: string }>(item: T) => {
-        if (item.storageKey) return { ...item, dataUrl: await resolveImageUrl(item.storageKey, item.dataUrl) };
+        if (item.storageKey) return withHydrationFallback(resolveImageUrl(item.storageKey, item.dataUrl).then((dataUrl) => ({ ...item, dataUrl })), item);
         if (item.dataUrl?.startsWith("data:image/")) {
-            const image = await uploadImage(item.dataUrl);
-            return { ...item, dataUrl: image.url, storageKey: image.storageKey };
+            return withHydrationFallback(uploadImage(item.dataUrl).then((image) => ({ ...item, dataUrl: image.url, storageKey: image.storageKey })), item);
         }
         return item;
     };
     return Promise.all(
-        sessions.map(async (session) => ({
+        sessions.map((session) => withHydrationFallback((async () => ({
             ...session,
             messages: await Promise.all(
                 session.messages.map(async (message) => ({
@@ -74,8 +73,24 @@ export async function hydrateAssistantImages(sessions: CanvasAssistantSession[])
                     references: await Promise.all((message.references || []).map(hydrateItem)),
                 })),
             ),
-        })),
+        }))(), session)),
     );
+}
+
+function withHydrationFallback<T>(task: Promise<T>, fallback: T) {
+    return new Promise<T>((resolve) => {
+        const timeout = window.setTimeout(() => resolve(fallback), 5000);
+        task.then(
+            (value) => {
+                window.clearTimeout(timeout);
+                resolve(value);
+            },
+            () => {
+                window.clearTimeout(timeout);
+                resolve(fallback);
+            },
+        );
+    });
 }
 
 export function getGenerationCount(count: string) {

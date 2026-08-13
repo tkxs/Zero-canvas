@@ -319,6 +319,7 @@ function InfiniteCanvasPage() {
 
     useEffect(() => {
         if (!hydrated) return;
+        let active = true;
         setProjectLoaded(false);
         const project = openProject(projectId);
         if (!project) {
@@ -329,6 +330,7 @@ function InfiniteCanvasPage() {
         const restore = async () => {
             const restoredNodes = await hydrateCanvasImages(resetInterruptedGeneration(project.nodes));
             const restoredSessions = await hydrateAssistantImages(project.chatSessions || []);
+            if (!active) return;
             setNodes(restoredNodes);
             setConnections(project.connections);
             setChatSessions(restoredSessions);
@@ -352,8 +354,31 @@ function InfiniteCanvasPage() {
             setHistoryState({ canUndo: false, canRedo: false });
             setProjectLoaded(true);
         };
-        void restore();
-    }, [hydrated, navigate, openProject, projectId]);
+        void restore().catch(() => {
+            if (!active) return;
+            const fallbackNodes = resetInterruptedGeneration(project.nodes);
+            setNodes(fallbackNodes);
+            setConnections(project.connections);
+            setChatSessions(project.chatSessions || []);
+            setActiveChatId(project.activeChatId || null);
+            setBackgroundMode(project.backgroundMode);
+            setShowImageInfo(project.showImageInfo || false);
+            setViewport(project.viewport);
+            lastHistoryRef.current = {
+                nodes: fallbackNodes,
+                connections: project.connections,
+                chatSessions: project.chatSessions || [],
+                activeChatId: project.activeChatId || null,
+                backgroundMode: project.backgroundMode,
+                showImageInfo: project.showImageInfo || false,
+            };
+            setProjectLoaded(true);
+            message.warning(t("canvas.projectPage.localMediaRestoreFailed"));
+        });
+        return () => {
+            active = false;
+        };
+    }, [hydrated, message, navigate, openProject, projectId, t]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;

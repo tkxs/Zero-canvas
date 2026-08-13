@@ -6,6 +6,8 @@ COPY web/package.json web/bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache bun install --cache-dir=/root/.bun/install/cache
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
+COPY .agents/plugins/marketplace.json /app/.agents/plugins/marketplace.json
+COPY plugins/infinite-canvas /app/plugins/infinite-canvas
 COPY web ./
 RUN bun run build
 

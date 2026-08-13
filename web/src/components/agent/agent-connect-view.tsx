@@ -1,13 +1,47 @@
-import { Fragment } from "react";
-import { App, Button, Input, Tooltip } from "antd";
+import { Fragment, useState } from "react";
+import { App, Button, Collapse, Input, Segmented, Tooltip } from "antd";
 import copyToClipboard from "copy-to-clipboard";
-import { Copy, KeyRound, Link2, PlugZap } from "lucide-react";
+import { saveAs } from "file-saver";
+import { Check, Copy, Download, KeyRound, Link2, PackageCheck, PlugZap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 
 const AGENT_PLUGIN_REMOVE_COMMAND = "codex plugin remove infinite-canvas";
 const AGENT_MCP_REMOVE_COMMAND = "codex mcp remove infinite-canvas";
+const CODEX_PLUGIN_DOWNLOAD_URL = "/downloads/usa0-codex-plugin.zip";
+const CODEX_PLUGIN_DOWNLOAD_NAME = `usa0-codex-plugin-${__USA0_CODEX_PLUGIN_VERSION__}.zip`;
+
+type InstallPlatform = "windows" | "unix";
+
+function defaultInstallPlatform(): InstallPlatform {
+    if (typeof navigator === "undefined") return "windows";
+    return /mac|linux/i.test(navigator.userAgent) ? "unix" : "windows";
+}
+
+const INSTALL_COMMANDS: Record<InstallPlatform, { script: string; manual: string }> = {
+    windows: {
+        script: "powershell -ExecutionPolicy Bypass -File .\\install.ps1",
+        manual: `$installRoot = Join-Path $HOME ".usa0\\codex-plugin-marketplace"
+Remove-Item -LiteralPath $installRoot -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+Copy-Item -LiteralPath ".\\.agents" -Destination $installRoot -Recurse -Force
+Copy-Item -LiteralPath ".\\plugins" -Destination $installRoot -Recurse -Force
+codex plugin marketplace remove infinite-canvas-local --json
+codex plugin marketplace add $installRoot --json
+codex plugin add infinite-canvas@infinite-canvas-local --json`,
+    },
+    unix: {
+        script: "sh ./install.sh",
+        manual: `install_root="$HOME/.usa0/codex-plugin-marketplace"
+rm -rf "$install_root"
+mkdir -p "$install_root"
+cp -R "./.agents" "./plugins" "$install_root/"
+codex plugin marketplace remove infinite-canvas-local --json || true
+codex plugin marketplace add "$install_root" --json
+codex plugin add infinite-canvas@infinite-canvas-local --json`,
+    },
+};
 
 export function AgentConnectView({
     theme,
@@ -34,6 +68,8 @@ export function AgentConnectView({
 }) {
     const { t } = useTranslation();
     const { message } = App.useApp();
+    const [installPlatform, setInstallPlatform] = useState<InstallPlatform>(defaultInstallPlatform);
+    const [downloadingPlugin, setDownloadingPlugin] = useState(false);
     const steps = [{ title: t("agent.connect.pluginTitle"), text: t("agent.connect.pluginText") }, { title: t("agent.connect.directTitle"), text: t("agent.connect.directText"), command: "npx -y @basketikun/canvas-agent" }];
     const statusText = connectError ? t("agent.status.failed") : connected ? activity : enabled ? t("agent.status.connecting") : t("agent.status.disconnected");
     const statusColor = connectError ? "#dc2626" : connected ? "#16a34a" : enabled ? "#d97706" : theme.node.muted;
@@ -41,6 +77,72 @@ export function AgentConnectView({
         copyToClipboard(command);
         message.success(t("agent.connect.commandCopied"));
     };
+    const downloadPlugin = async () => {
+        if (downloadingPlugin) return;
+        setDownloadingPlugin(true);
+        try {
+            const response = await fetch(CODEX_PLUGIN_DOWNLOAD_URL, { cache: "no-store" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error("Invalid ZIP response");
+            saveAs(new Blob([bytes], { type: "application/zip" }), CODEX_PLUGIN_DOWNLOAD_NAME);
+        } catch {
+            message.error(t("agent.connect.pluginDownloadFailed"));
+        } finally {
+            setDownloadingPlugin(false);
+        }
+    };
+    const commandRow = (command: string, multiline = false) => (
+        <div className="flex min-w-0 items-start gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+            <code className={`min-w-0 flex-1 overflow-x-auto text-[11px] leading-5 ${multiline ? "whitespace-pre" : "whitespace-nowrap"}`}>{command}</code>
+            <Tooltip title={t("agent.connect.copyCommand")}>
+                <Button size="small" type="text" className="!h-6 !w-6 !min-w-6" icon={<Copy className="size-3.5" />} onClick={() => copyCommand(command)} />
+            </Tooltip>
+        </div>
+    );
+    const codexPluginInstall = (
+        <div className="mt-3 space-y-3 border-t pt-3" style={{ borderColor: theme.node.stroke }}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2 text-xs" style={{ color: theme.node.muted }}>
+                    <PackageCheck className="size-4 shrink-0" style={{ color: theme.node.text }} />
+                    <span>{t("agent.connect.pluginContents")}</span>
+                    <span className="shrink-0">v{__USA0_CODEX_PLUGIN_VERSION__}</span>
+                </div>
+                <Button type="primary" icon={<Download className="size-4" />} loading={downloadingPlugin} onClick={() => void downloadPlugin()}>
+                    {t("agent.connect.downloadPlugin")}
+                </Button>
+            </div>
+            <ol className="grid gap-2 text-xs leading-5" style={{ color: theme.node.muted }}>
+                {[t("agent.connect.installStepDownload"), t("agent.connect.installStepRun"), t("agent.connect.installStepRestart")].map((text, index) => (
+                    <li key={text} className="flex gap-2">
+                        <span className="grid size-5 shrink-0 place-items-center rounded-full border text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{index + 1}</span>
+                        <span>{text}</span>
+                    </li>
+                ))}
+            </ol>
+            <Segmented<InstallPlatform>
+                block
+                size="small"
+                value={installPlatform}
+                options={[{ label: "Windows", value: "windows" }, { label: "macOS / Linux", value: "unix" }]}
+                onChange={setInstallPlatform}
+            />
+            {commandRow(INSTALL_COMMANDS[installPlatform].script)}
+            <Collapse
+                ghost
+                size="small"
+                items={[{
+                    key: "manual",
+                    label: t("agent.connect.manualInstall"),
+                    children: <div className="space-y-2">{commandRow(INSTALL_COMMANDS[installPlatform].manual, true)}</div>,
+                }]}
+            />
+            <div className="flex items-start gap-2 text-xs leading-5" style={{ color: theme.node.muted }}>
+                <Check className="mt-0.5 size-3.5 shrink-0" style={{ color: "#16a34a" }} />
+                <span>{t("agent.connect.installUpdateHint")}</span>
+            </div>
+        </div>
+    );
     const codexPluginReminder = (
         <div className="rounded-lg border px-3 py-2.5 text-xs leading-5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
             <div className="font-medium" style={{ color: theme.node.text }}>
@@ -85,13 +187,9 @@ export function AgentConnectView({
                                         {step.text}
                                     </div>
                                     {command ? (
-                                        <div className="mt-2 flex items-center gap-2 rounded-md border bg-transparent px-2 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
-                                            <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[11px] leading-5">{command}</code>
-                                            <Tooltip title={t("agent.connect.copyCommand")}>
-                                                <Button size="small" type="text" className="!h-6 !w-6 !min-w-6" icon={<Copy className="size-3.5" />} onClick={() => copyCommand(command)} />
-                                            </Tooltip>
-                                        </div>
+                                        <div className="mt-2">{commandRow(command)}</div>
                                     ) : null}
+                                    {index === 0 ? codexPluginInstall : null}
                                 </div>
                                 {index === 0 ? codexPluginReminder : null}
                             </Fragment>
