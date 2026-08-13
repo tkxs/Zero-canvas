@@ -14,6 +14,10 @@ export default async function Layout({ params, children }: LayoutProps<'/[lang]'
   );
 }
 
+export const metadata = {
+  icons: { icon: '/logo.png' },
+};
+
 export function generateStaticParams() {
   return i18n.languages.map((lang) => ({ lang }));
 }
