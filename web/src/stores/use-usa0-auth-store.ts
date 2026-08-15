@@ -12,6 +12,7 @@ import {
     fetchUsa0Profile,
     getOrCreateInstallationId,
     getPersistedUsa0Session,
+    openUsa0AuthPopup,
     refreshUsa0Token,
     revokeUsa0Token,
     savePersistedUsa0Session,
@@ -94,7 +95,7 @@ export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
     pendingPath: "",
     setModalOpen: (modalOpen) => set((state) => ({ modalOpen, pendingPath: modalOpen ? state.pendingPath : "" })),
     requestAccess: (pendingPath) => set((state) => ({ pendingPath: safeInternalPath(pendingPath), modalOpen: state.status === "ready" ? state.modalOpen : true })),
-    clearPendingPath: () => set({ pendingPath: "" }),
+    clearPendingPath: () => set({ pendingPath: "", modalOpen: false }),
     initialize: async () => {
         if (initializePromise) return initializePromise;
         initializePromise = (async () => {
@@ -129,14 +130,19 @@ export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
     },
     login: async () => {
         const previousStatus = get().status;
-        const baseline = await getPersistedUsa0Session();
-        const expectedEpoch = sessionEpoch;
-        const authorizingSessionId = crypto.randomUUID();
-        set({ status: "authorizing", error: "" });
+        let expectedEpoch = sessionEpoch;
+        let authorizingSessionId = "";
+        let popup: Window | null = null;
         try {
-            const token = await authorizeUsa0WithPopup();
+            popup = openUsa0AuthPopup();
+            const baseline = await getPersistedUsa0Session();
+            expectedEpoch = sessionEpoch;
+            authorizingSessionId = crypto.randomUUID();
+            set({ status: "authorizing", error: "" });
+            const token = await authorizeUsa0WithPopup(popup);
             await acceptToken(token, validSession(baseline) ? baseline : null, expectedEpoch, authorizingSessionId);
         } catch (error) {
+            popup?.close();
             if (sessionEpoch === expectedEpoch || activeSessionId === authorizingSessionId) set({ hydrated: true, status: get().profile ? previousStatus : "error", error: authErrorMessage(error) });
             throw error;
         }
@@ -255,6 +261,7 @@ async function acceptToken(token: Usa0TokenResponse, previous: Usa0PersistedSess
     const session = await withRefreshLock(() => persistToken(token, previous, expectedEpoch, sessionId));
     authChannel?.postMessage({ type: "session-updated", sessionId: session.sessionId, revision: session.revision } satisfies AuthEvent);
     await syncAccount(token.access_token, session.sessionId);
+    if (useUsa0AuthStore.getState().status === "ready") useUsa0AuthStore.setState({ modalOpen: false });
     return session;
 }
 

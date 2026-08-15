@@ -135,14 +135,24 @@ export function getOAuthRedirectUri() {
     return `${url.origin}/oauth/callback`;
 }
 
-export async function authorizeUsa0WithPopup() {
-    const redirectUri = getOAuthRedirectUri();
+export function openUsa0AuthPopup() {
+    getOAuthRedirectUri();
     const popup = window.open("about:blank", `usa0-oauth-${crypto.randomUUID()}`, "popup=yes,width=520,height=720");
     if (!popup) throw new Error("登录窗口被浏览器拦截，请允许弹窗后重试");
-    let navigated = false;
-    const verifier = randomBase64Url(64);
     try {
         showPopupConnecting(popup);
+        return popup;
+    } catch (error) {
+        popup.close();
+        throw safeAuthError(error, "无法打开 USA零账号登录窗口");
+    }
+}
+
+export async function authorizeUsa0WithPopup(popup: Window) {
+    let verifier = "";
+    try {
+        const redirectUri = getOAuthRedirectUri();
+        verifier = randomBase64Url(64);
         const state = randomBase64Url(32);
         const installationId = await getOrCreateInstallationId();
         const request = {
@@ -161,15 +171,13 @@ export async function authorizeUsa0WithPopup() {
         if (!created.request_id) throw new Error("授权服务未返回请求 ID");
         const authorizationUrl = new URL("/oauth/authorize", USA0_ORIGIN);
         authorizationUrl.searchParams.set("request_id", created.request_id);
-        popup.location.replace(authorizationUrl.toString());
-        navigated = true;
-        const callback = await waitForOAuthCallback(popup, state);
+        const callback = await waitForOAuthCallback(popup, state, () => popup.location.replace(authorizationUrl.toString()));
         if (callback.error) throw new Error(callback.error === "access_denied" ? "已取消账号授权" : "账号授权失败");
         if (!callback.code || callback.state !== state) throw new Error("授权状态校验失败，请重新登录");
         return exchangeAuthorizationCode(callback.code, redirectUri, verifier);
     } catch (error) {
-        if (!navigated) popup.close();
-        throw safeAuthError(error, "无法连接 USA零账号服务", [verifier]);
+        popup.close();
+        throw safeAuthError(error, "无法连接 USA零账号服务", verifier ? [verifier] : []);
     }
 }
 
@@ -314,10 +322,12 @@ async function appRequest<T>(method: "get" | "post" | "delete", path: string, ac
     }
 }
 
-function waitForOAuthCallback(popup: Window, expectedState: string) {
+function waitForOAuthCallback(popup: Window, expectedState: string, navigate: () => void) {
     return new Promise<OAuthCallbackMessage>((resolve, reject) => {
         let deadline = 0;
         let closed = 0;
+        let closedGrace = 0;
+        let settled = false;
         const callbackChannel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(`usa0-oauth-callback:${expectedState}`);
         const receive = (payload: OAuthCallbackMessage) => {
             if (payload?.type === "usa0-oauth-callback" && payload.state === expectedState) finish(() => resolve(payload));
@@ -328,7 +338,10 @@ function waitForOAuthCallback(popup: Window, expectedState: string) {
         };
         const onChannelMessage = (event: MessageEvent<OAuthCallbackMessage>) => receive(event.data);
         const finish = (done: () => void) => {
+            if (settled) return;
+            settled = true;
             window.clearTimeout(deadline);
+            window.clearTimeout(closedGrace);
             window.clearInterval(closed);
             window.removeEventListener("message", onMessage);
             callbackChannel?.removeEventListener("message", onChannelMessage);
@@ -337,11 +350,19 @@ function waitForOAuthCallback(popup: Window, expectedState: string) {
             done();
         };
         deadline = window.setTimeout(() => finish(() => reject(new Error("登录请求已过期，请重试"))), 5 * 60 * 1000);
-        closed = window.setInterval(() => {
-            if (popup.closed) finish(() => reject(new Error("登录窗口已关闭")));
-        }, 400);
+        if (!callbackChannel) {
+            closed = window.setInterval(() => {
+                if (!popup.closed || closedGrace) return;
+                closedGrace = window.setTimeout(() => finish(() => reject(new Error("登录窗口已关闭"))), 1000);
+            }, 400);
+        }
         window.addEventListener("message", onMessage);
         callbackChannel?.addEventListener("message", onChannelMessage);
+        try {
+            navigate();
+        } catch (error) {
+            finish(() => reject(error));
+        }
     });
 }
 
