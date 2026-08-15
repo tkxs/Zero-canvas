@@ -6,15 +6,17 @@ export default function OAuthCallbackPage() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
+        const rawCode = params.get("code") || "";
+        const rawState = params.get("state") || "";
+        const rawError = params.get("error") || "";
         const payload = {
             type: "usa0-oauth-callback" as const,
-            code: params.get("code") || undefined,
-            state: params.get("state") || undefined,
-            error: params.get("error") || undefined,
-            errorDescription: params.get("error_description") || undefined,
+            code: /^[\x21-\x7E]{1,2048}$/.test(rawCode) ? rawCode : undefined,
+            state: /^[A-Za-z0-9_-]{43}$/.test(rawState) ? rawState : undefined,
+            error: /^[A-Za-z0-9_.-]{1,64}$/.test(rawError) ? rawError : rawError ? "invalid_request" : undefined,
         };
         window.history.replaceState(null, "", window.location.pathname);
-        const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("usa0-oauth-callback");
+        const channel = typeof BroadcastChannel === "undefined" || !payload.state ? null : new BroadcastChannel(`usa0-oauth-callback:${payload.state}`);
         channel?.postMessage(payload);
         channel?.close();
         if (!window.opener) {

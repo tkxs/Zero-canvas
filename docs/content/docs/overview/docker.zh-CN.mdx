@@ -11,7 +11,7 @@ description: 使用 Docker Compose 部署USA零
 
 ```bash
 git clone git@github.com:tkxs/Zero-canvas.git
-cd infinite-canvas
+cd Zero-canvas
 docker compose up -d
 ```
 
@@ -28,6 +28,21 @@ http://localhost:3000
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+## USA零 OAuth
+
+`USA0_ORIGIN` 用于指定外部官方服务，默认是 `https://usa0.top`；仅在使用其他官方服务部署时通过容器环境变量覆盖。除本地回环地址可使用 HTTP 外，其余地址必须使用 HTTPS。
+
+生产画布必须使用稳定来源。登录前，需要由外部官方服务登记精确的 `<来源>/oauth/callback` 回调地址和精确的 CORS 来源；不支持通配符、随机预览域名或持续变化的部署地址。
+
+```yaml
+services:
+  app:
+    environment:
+      USA0_ORIGIN: https://usa0.top
+```
+
+所有业务页面都需要 OAuth。官网全部 Key 和模型会自动同步，每个 Key 都保持独立来源，同名模型也按 Key 区分，完整 Key 只保留在运行期内存中。
 
 ## 文档站镜像
 
@@ -49,7 +64,7 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## 数据说明
 
-当前主应用镜像只启动 Next.js。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；第三方提示词由浏览器前端直连拉取，不需要额外挂载数据目录。
+当前主应用镜像提供构建后的 Vite 单页应用。画布、我的素材和生成记录默认保存在浏览器本地，官网完整 Key 仅保留在运行期内存；第三方提示词由浏览器前端直连拉取，不需要额外挂载数据目录。
 
 ## 统计分析（可选）
 

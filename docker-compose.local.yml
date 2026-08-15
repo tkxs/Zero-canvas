@@ -6,4 +6,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    environment:
+      USA0_ORIGIN: "${USA0_ORIGIN:-http://localhost:8080}"
     restart: unless-stopped

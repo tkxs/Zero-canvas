@@ -9,6 +9,8 @@ See [SECURITY.md](https://github.com/tkxs/Zero-canvas/blob/main/SECURITY.md). Do
 
 Use private vulnerability reporting or a Security Advisory in the current GitHub repository. If unavailable, open a public issue requesting a private contact channel without including exploit details.
 
-Include the affected version or commit, reproduction steps, impact and prerequisites, redacted logs or proof of concept, and whether browser storage, API keys, WebDAV, AI provider configuration, or network requests are involved.
+Include the affected version or commit, reproduction steps, impact and prerequisites, redacted logs or proof of concept, and whether OAuth, official Keys, browser storage, WebDAV, plugins, or network requests are involved.
 
-The project prioritizes vulnerabilities caused by repository code or defaults, including XSS, sensitive-data exposure, file processing, import/export, WebDAV, access control, and supply-chain risks. Problems confined to third-party services, leaked user credentials, recommendations without an exploit path, phishing, and account recovery are normally outside scope.
+Business pages use USA0 OAuth Authorization Code with S256 PKCE. The callback carries only `code`, `state`, or `error`; the official website Cookie stays on the same-origin authorization page and is never read or transmitted by the canvas. Complete official Keys are runtime-only and must never appear in persisted configuration, imports or exports, WebDAV, logs, errors, the DOM, URLs, `postMessage`, `BroadcastChannel`, or the plugin SDK. Each Key is an independent source; nodes and tasks retain `usa0-key-<Key ID>::<model name>` and fail without falling back if that source becomes unavailable.
+
+Plugins execute in the page context and must be trusted. Their SDK receives only opaque source-qualified model values and host-mediated generation methods, never complete official Keys. Reports that cross these credential boundaries, bypass plugin installation confirmation, or otherwise expose sensitive data through repository code are in scope.

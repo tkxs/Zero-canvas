@@ -1,7 +1,7 @@
 import { saveAs } from "file-saver";
 
 import i18n from "@/i18n";
-import { sanitizeConfigSecrets, useConfigStore, type AiConfig, type WebdavSyncConfig } from "@/stores/use-config-store";
+import { modelMatchesCapability, sanitizeConfigSecrets, useConfigStore, type AiConfig, type ModelCapability, type WebdavSyncConfig } from "@/stores/use-config-store";
 import { usePromptSourceStore, type PromptSourceSchedule } from "@/stores/use-prompt-source-store";
 import type { PromptSource } from "@/services/api/prompt-source-presets";
 
@@ -32,6 +32,21 @@ export async function importAppConfig(file: File) {
         throw new Error(i18n.t("config.invalidFile"));
     }
     if (data.app !== "infinite-canvas" || data.version !== 1 || !data.config || !data.webdav || !data.promptSources) throw new Error(i18n.t("config.invalidFile"));
-    useConfigStore.setState({ config: sanitizeConfigSecrets(data.config), webdav: data.webdav });
+    const current = useConfigStore.getState().config;
+    const imported = sanitizeConfigSecrets(data.config);
+    const valid = (value: string, capability: ModelCapability, fallback: string) => (value && modelMatchesCapability(current, value, capability) ? value : fallback);
+    useConfigStore.setState({
+        config: {
+            ...imported,
+            channels: current.channels,
+            models: current.models,
+            model: imported.model && modelMatchesCapability(current, imported.model) ? imported.model : current.model,
+            imageModel: valid(imported.imageModel, "image", current.imageModel),
+            videoModel: valid(imported.videoModel, "video", current.videoModel),
+            textModel: valid(imported.textModel, "text", current.textModel),
+            audioModel: valid(imported.audioModel, "audio", current.audioModel),
+        },
+        webdav: data.webdav,
+    });
     usePromptSourceStore.setState(data.promptSources);
 }

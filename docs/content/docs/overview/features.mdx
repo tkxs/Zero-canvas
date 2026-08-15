@@ -27,10 +27,12 @@ description: Major features available in the current project
 
 ## AI generation
 
-- Connect to user-provided OpenAI-compatible endpoints directly from the browser.
-- Configure multiple channels, fetch or enter model names, and choose default text, image, and video models.
-- Support image count, aspect ratio, quality, transparent backgrounds, reasoning effort, and custom invocation scripts.
-- Support OpenAI-style video endpoints and Volcengine Ark generation tasks.
+- Business pages require a USA0 account connected through OAuth Authorization Code with S256 PKCE.
+- After authorization, all official website Keys synchronize automatically. Each usable Key remains an independent model source, including when several Keys expose the same model name.
+- Model selections are stored as the exact source-qualified value `usa0-key-<Key ID>::<model name>`. A node or pending task whose original account or Key source is unavailable fails explicitly and never falls back to another Key with the same model name.
+- Choose default text, image, video, and audio models from synchronized Key sources, and configure generation options such as count, aspect ratio, quality, transparent backgrounds, and reasoning effort.
+
+Account settings can synchronize Keys, create a Key in an existing group, delete a Key, and inspect per-Key usage. Create or delete groups on the official website; the website is the source of truth for account, group, and Key state.
 
 ## Canvas Agent
 
@@ -43,7 +45,7 @@ See [Codex App Plugin](/docs/overview/codex-app-plugin) for installation and usa
 
 ## Plugin system
 
-Canvas plugins can contribute node types, rendering, inspectors, serialization, migration, toolbar actions, and optional AI generation capabilities. Built-in and local plugins are managed through the canvas UI.
+Canvas plugins can contribute node types, rendering, inspectors, serialization, migration, toolbar actions, and optional AI generation capabilities. Plugins run in the page context, so install only trusted code. The plugin SDK receives opaque source-qualified model values and host-mediated generation methods, never complete official Keys.
 
 ## Prompts and assets
 
@@ -53,12 +55,12 @@ Canvas plugins can contribute node types, rendering, inspectors, serialization, 
 
 ## Configuration and synchronization
 
-- Export and import channel, model, generation, prompt-source, and WebDAV settings.
-- Store application data and API credentials locally in the browser.
+- Export and import generation preferences, prompt-source settings, and WebDAV settings. Official Key sources and credentials are excluded.
+- Keep complete official Keys in runtime memory only; they are fetched again after account restoration.
 - Use WebDAV for optional cross-device synchronization.
 
 ## Current limitations
 
-- The project is frontend-first and does not provide built-in cloud accounts or cloud storage.
-- API keys remain in browser storage and requests are sent directly to configured providers.
+- Canvas projects and assets remain browser-local and are not synchronized through the USA0 account.
+- AI generation depends on an authorized USA0 account and at least one usable official website Key.
 - Production Docker static-resource paths still require broader deployment verification.

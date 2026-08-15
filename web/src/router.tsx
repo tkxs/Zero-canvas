@@ -1,6 +1,7 @@
 import { createBrowserRouter, Outlet } from "react-router-dom";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
+import { RequireUsa0Account } from "@/components/layout/require-usa0-account";
 import UserLayout from "@/layouts/user-layout";
 import AssetsPage from "@/pages/assets";
 import CanvasPage from "@/pages/canvas";
@@ -24,13 +25,18 @@ export const router = createBrowserRouter([
         ),
         children: [
             { path: "/", element: <HomePage /> },
-            { path: "/image", element: <ImagePage /> },
-            { path: "/video", element: <VideoPage /> },
-            { path: "/assets", element: <AssetsPage /> },
-            { path: "/prompts", element: <PromptsPage /> },
-            { path: "/canvas", element: <CanvasPage /> },
-            { path: "/canvas/:id", element: <CanvasProjectPage /> },
-            { path: "/config", element: <ConfigPage /> },
+            {
+                element: <RequireUsa0Account />,
+                children: [
+                    { path: "/image", element: <ImagePage /> },
+                    { path: "/video", element: <VideoPage /> },
+                    { path: "/assets", element: <AssetsPage /> },
+                    { path: "/prompts", element: <PromptsPage /> },
+                    { path: "/canvas", element: <CanvasPage /> },
+                    { path: "/canvas/:id", element: <CanvasProjectPage /> },
+                    { path: "/config", element: <ConfigPage /> },
+                ],
+            },
         ],
     },
     { path: "*", element: <NotFound /> },

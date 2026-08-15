@@ -24,31 +24,43 @@ Please include:
 - Clear reproduction steps.
 - Impact and attack scenario.
 - Any relevant logs, screenshots, or proof of concept, with secrets removed.
-- Whether the issue affects local-only usage, hosted deployments, browser
-  storage, WebDAV sync, AI provider configuration, or API proxy behavior.
+- Whether the issue affects OAuth, official Keys, browser storage, WebDAV,
+  plugins, hosted deployments, or network requests.
 
 ## Scope
 
+### Official account credentials
+
+Business pages are gated by USA0 OAuth Authorization Code with S256 PKCE. The
+OAuth callback carries only `code`, `state`, or `error` results. The official
+website Cookie is used only by the same-origin authorization page; the canvas
+must never read or transmit it.
+
+Complete official Keys are fetched after authorization and kept in runtime
+memory only. They must never enter persisted configuration, imports or exports,
+WebDAV data, logs, errors, the DOM, URLs, `postMessage`, `BroadcastChannel`, or
+the plugin SDK. Each Key is an independent model source. Nodes and pending tasks
+retain their exact `usa0-key-<Key ID>::<model name>` source and must fail rather
+than fall back when that account or Key source is unavailable.
+
 ### Canvas node plugins
 
-The canvas supports third-party node plugins loaded from a remote URL. By
-design, an installed plugin's code runs directly inside the web app with full
-access to the page, including locally stored data such as AI API keys. This is
-an intentional trade-off for extensibility, and the installer shows a warning
-before installing. Therefore:
+Third-party node plugins execute directly in the page context and therefore
+require the same trust as other code installed into the application. Install
+plugins only from sources you trust. The SDK exposes opaque source-qualified
+model values and host-mediated generation methods, never complete official
+Keys.
 
-- Only install plugins from sources you trust.
-- Reports that a *malicious plugin* can access page data or API keys are **out
-  of scope** — that is the documented behavior of the trust model.
-- Reports **in scope** include: the app loading/executing plugin code without
-  the install confirmation, a plugin escaping its declared node type to break
-  core app integrity in ways not implied by "runs in the page", or the plugin
-  source cache being writable by an unrelated origin.
+Reports **in scope** include the app loading or executing plugin code without
+install confirmation, exposing complete official Keys through the SDK or other
+listed surfaces, or allowing an unrelated origin to modify the plugin source
+cache. A trusted plugin's ability to interact with ordinary page data is part
+of the documented page-context execution model.
 
 Examples of in-scope reports:
 
 - Cross-site scripting or token exfiltration in the web app.
-- Exposure of locally stored API keys or synced canvas data caused by project
+- Exposure of runtime-only official Keys or synced canvas data caused by project
   code.
 - Unsafe file handling, import/export behavior, or WebDAV proxy behavior.
 - Authentication, authorization, or access-control flaws in project-managed

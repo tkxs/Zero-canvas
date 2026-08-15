@@ -6,6 +6,7 @@ import i18n from "@/i18n";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { modelOptionLabel, modelOptionName, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
+import { useUsa0AuthStore } from "@/stores/use-usa0-auth-store";
 
 type ModelPickerProps = {
     config: AiConfig;
@@ -15,13 +16,13 @@ type ModelPickerProps = {
     className?: string;
     fullWidth?: boolean;
     placeholder?: string;
-    onMissingConfig?: () => void;
 };
 
-export function ModelPicker({ config, value, onChange, capability, className, fullWidth = false, placeholder, onMissingConfig }: ModelPickerProps) {
+export function ModelPicker({ config, value, onChange, capability, className, fullWidth = false, placeholder }: ModelPickerProps) {
     const { t } = useTranslation();
     const pickerId = useId();
     const [open, setOpen] = useState(false);
+    const setAccountModalOpen = useUsa0AuthStore((state) => state.setModalOpen);
     const options = useMemo(() => Array.from(new Set([...(config.channelMode === "local" && !capability ? [value] : []), ...selectableModelsByCapability(config, capability)].filter((model): model is string => Boolean(model)))), [capability, config, value]);
     const current = value || "";
     const pickerPlaceholder = placeholder || t("settingsPanels.model.select");
@@ -39,7 +40,9 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
             open={open}
             value={current}
             onOpenChange={(nextOpen) => {
-                if (nextOpen && !options.length && config.channelMode === "local") onMissingConfig?.();
+                if (nextOpen && !options.length && config.channelMode === "local") {
+                    setAccountModalOpen(true);
+                }
                 if (nextOpen) window.dispatchEvent(new CustomEvent("model-picker-open", { detail: pickerId }));
                 setOpen(nextOpen);
             }}

@@ -5,18 +5,17 @@ description: 用最少步骤把USA零跑起来
 
 # 快速开始
 
-如果你只是想先把项目跑起来，优先部署或启动 `web/` 前端。
+如果你只是想先把项目跑起来，优先部署或启动 `web/` 前端。除首页和 OAuth 回调页外，所有业务页面都需要 USA零 OAuth 登录。
 
 ## Vercel 部署
 
-在 Vercel 中导入仓库即可，根目录 `vercel.json` 会构建 `web/`。当前版本的 AI 请求由浏览器前台直连用户自己的 OpenAI 兼容地址，不需要额外配置服务端。
+在 Vercel 中导入仓库即可，根目录 `vercel.json` 会构建 `web/`，官方服务来源默认是 `https://usa0.top`。生产环境必须使用稳定的 HTTPS 画布来源，并由外部官方服务登记该 CORS 来源及精确的 `<来源>/oauth/callback` 回调地址；不支持通配符或不断变化的预览域名。
 
 ## 本地启动
 
 ```bash
 git clone git@github.com:tkxs/Zero-canvas.git
-cd infinite-canvas
-cd web
+cd Zero-canvas/web
 bun install
 bun run dev
 ```
@@ -36,13 +35,16 @@ docker build -t infinite-canvas .
 docker run --rm -p 3000:3000 infinite-canvas
 ```
 
-## 首次使用建议
+## 首次使用
 
-- 先打开右上角配置弹窗，填入自己的 `Base URL`、`API Key` 和模型名。
+- 使用 USA零账号登录。已有的官网登录 Cookie 只会由官网同源的 `/oauth/authorize` 页面自然复用，画布不会读取或传输官网 Cookie 或网站 Token。
+- 授权后会自动同步官网全部 Key。每个 Key 都是独立模型来源，同名模型会按 Key 区分。
+- 如果账号没有 Key，请打开“账号管理”，选择官网分组并创建 Key。创建和删除都会直接同步官网，官网是数据源。
 - 如果需要提示词仓库内容，打开 `/prompts` 会由浏览器前端直连拉取并缓存到 IndexedDB。
 - 如果需要跨设备同步画布、素材和生成记录，可在配置弹窗中填写 WebDAV。
 
 ## 说明
 
 - 当前画布项目和“我的素材”主要保存在浏览器本地，WebDAV 同步需要用户自行配置。
-- AI API Key 保存在浏览器本地，并由前端直接请求 OpenAI 兼容接口。
+- 不再提供自定义或本地渠道，也无需手工填写 `Base URL`、API Key 或模型。
+- 官网完整 Key 只保留在当前页面的运行期内存中。

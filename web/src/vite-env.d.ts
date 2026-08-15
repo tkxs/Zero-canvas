@@ -12,4 +12,6 @@ interface ImportMetaEnv {
     readonly VITE_ANALYTICS_GA4_ID?: string;
     // Baidu Analytics site ID
     readonly VITE_ANALYTICS_BAIDU_ID?: string;
+    // Optional build-time USA0 service origin. Runtime USA0_ORIGIN takes precedence.
+    readonly VITE_USA0_ORIGIN?: string;
 }

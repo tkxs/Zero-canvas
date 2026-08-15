@@ -1,12 +1,12 @@
 import axios from "axios";
 
 import i18n from "@/i18n";
-import { buildApiUrl, resolveModelRequestConfig, resolveModelScript, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
-import { normalizePluginImages, runModelPlugin } from "./model-plugin";
+import { buildApiUrl, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
 import { imageToDataUrl } from "@/services/image-storage";
+import { redactUsa0Secrets } from "@/services/api/usa0-runtime";
 import type { ReferenceImage } from "@/types/image";
 
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
@@ -301,21 +301,22 @@ function readApiErrorMessage(value: unknown): string {
     );
 }
 
-function readAxiosError(error: unknown, fallback: string) {
+function readAxiosError(error: unknown, fallback: string, apiKey = "") {
+    const redact = (value: string) => redactUsa0Secrets(apiKey ? value.split(apiKey).join("[REDACTED]") : value);
     if (axios.isCancel(error)) return apiText("requestCanceled");
     if (axios.isAxiosError(error)) {
         const responseData = error.response?.data;
         // Prefer the API error from the response body.
         const apiMsg = readApiErrorMessage(responseData);
-        if (apiMsg) return apiMsg;
+        if (apiMsg) return redact(apiMsg);
         // Infer the error from the HTTP status when the response body has no usable message.
         const statusMsg = readStatusError(error.response?.status, fallback);
         if (statusMsg) return statusMsg;
         // Fall back to Axios's own error message.
-        return error.message || fallback;
+        return redact(error.message || fallback);
     }
     if (error instanceof DOMException && error.name === "AbortError") return apiText("requestCanceled");
-    return error instanceof Error ? readApiErrorMessage(error.message) || error.message : fallback;
+    return error instanceof Error ? redact(readApiErrorMessage(error.message) || error.message) : fallback;
 }
 
 function readStatusError(status: number | undefined, fallback: string) {
@@ -716,31 +717,11 @@ function parseGeminiImagePayload(payload: GeminiPayload) {
 export async function requestGeneration(config: AiConfig, prompt: string, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
-    const script = resolveModelScript(config, config.model || config.imageModel);
-    if (script) {
-        const quality = normalizeQuality(config.quality);
-        const requestSize = resolveRequestSize(quality, config.size);
-        const background = normalizeBackground(config.background);
-        try {
-            const result = await runModelPlugin({
-                capability: "image",
-                script,
-                config: requestConfig,
-                prompt: withSystemPrompt(requestConfig, prompt),
-                images: [],
-                params: { size: requestSize, quality, count: n, ...(background ? { background } : {}) },
-                signal: options?.signal,
-            });
-            return normalizePluginImages(result).map((dataUrl) => ({ id: nanoid(), dataUrl }));
-        } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
-        }
-    }
     if (requestConfig.apiFormat === "gemini") {
         try {
             return await requestGeminiImages(requestConfig, prompt, [], n, options);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
         }
     }
     const quality = normalizeQuality(config.quality);
@@ -767,7 +748,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
         const images = parseImagePayload(response.data);
         return images;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
     }
 }
 
@@ -775,33 +756,12 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     const requestConfig = resolveModelRequestConfig(config, config.model || config.imageModel);
     const n = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
     const requestPrompt = buildImageReferencePromptText(prompt, references);
-    const script = resolveModelScript(config, config.model || config.imageModel);
-    if (script) {
-        const quality = normalizeQuality(config.quality);
-        const requestSize = resolveRequestSize(quality, config.size);
-        const background = normalizeBackground(config.background);
-        const refs = await Promise.all(references.map((image) => imageToDataUrl(image)));
-        try {
-            const result = await runModelPlugin({
-                capability: "image",
-                script,
-                config: requestConfig,
-                prompt: withSystemPrompt(requestConfig, requestPrompt),
-                images: refs,
-                params: { size: requestSize, quality, count: n, ...(background ? { background } : {}) },
-                signal: options?.signal,
-            });
-            return normalizePluginImages(result).map((dataUrl) => ({ id: nanoid(), dataUrl }));
-        } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
-        }
-    }
     if (requestConfig.apiFormat === "gemini") {
         if (mask) throw new Error(apiText("geminiMaskUnsupported"));
         try {
             return await requestGeminiImages(requestConfig, requestPrompt, references, n, options);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
         }
     }
 
@@ -832,7 +792,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
             );
             return parseImagePayload(response.data);
         } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
+            throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
         }
     }
 
@@ -863,30 +823,12 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
         const images = parseImagePayload(response.data);
         return images;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
     }
 }
 
 export async function requestImageQuestion(config: AiConfig, messages: AiTextMessage[], onDelta: (text: string) => void, options?: RequestOptions) {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.textModel);
-    const script = resolveModelScript(config, config.model || config.textModel);
-    if (script) {
-        try {
-            const answer = await runModelPlugin<string>({
-                capability: "text",
-                script,
-                config: requestConfig,
-                messages: withSystemMessage(requestConfig, messages),
-                signal: options?.signal,
-                onDelta,
-            });
-            const text = String(answer ?? "").trim() || apiText("noContent");
-            if (text === apiText("noContent")) onDelta(text);
-            return text;
-        } catch (error) {
-            throw new Error(readAxiosError(error, apiText("requestFailed")));
-        }
-    }
     try {
         if (requestConfig.apiFormat === "gemini") {
             const answer = (await requestGeminiStreamingResponse(requestConfig, toGeminiBody(requestConfig, messages), onDelta, options)).content || apiText("noContent");
@@ -901,42 +843,6 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
         if (answer === apiText("noContent")) onDelta(answer);
         return answer;
     } catch (error) {
-        throw new Error(readAxiosError(error, apiText("requestFailed")));
+        throw new Error(readAxiosError(error, apiText("requestFailed"), requestConfig.apiKey));
     }
 }
-
-export async function fetchImageModels(config: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat">) {
-    try {
-        if (config.apiFormat === "gemini") {
-            const response = await axios.get<GeminiPayload>(geminiApiUrl({ ...defaultGeminiConfig, ...config }), { headers: geminiHeaders({ ...defaultGeminiConfig, ...config }) });
-            validateGeminiPayload(response.data);
-            return (response.data.models || [])
-                .map((model) => model.name?.replace(/^models\//, ""))
-                .filter((id): id is string => Boolean(id))
-                .sort((a, b) => a.localeCompare(b));
-        }
-        const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(config.baseUrl, "/models"), {
-            headers: {
-                Authorization: `Bearer ${config.apiKey}`,
-            },
-        });
-        return (response.data.data || [])
-            .map((model) => model.id)
-            .filter((id): id is string => Boolean(id))
-            .sort((a, b) => a.localeCompare(b));
-    } catch (error) {
-        throw new Error(readAxiosError(error, apiText("modelReadFailed")));
-    }
-}
-
-export async function fetchChannelModels(channel: ModelChannel) {
-    return fetchImageModels({ baseUrl: channel.baseUrl, apiKey: channel.apiKey, apiFormat: channel.apiFormat });
-}
-
-const defaultGeminiConfig: Pick<AiConfig, "baseUrl" | "apiKey" | "apiFormat" | "model" | "systemPrompt"> = {
-    baseUrl: "https://generativelanguage.googleapis.com",
-    apiKey: "",
-    apiFormat: "gemini",
-    model: "",
-    systemPrompt: "",
-};

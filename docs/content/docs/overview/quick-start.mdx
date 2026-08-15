@@ -5,17 +5,17 @@ description: Run USA零 in a few steps
 
 # Quick Start
 
-To try the project, deploy or start the `web/` frontend.
+To try the project, deploy or start the `web/` frontend. All business pages require USA0 OAuth; only the home page and OAuth callback remain public.
 
 ## Deploy with Vercel
 
-Import the repository into Vercel. The root `vercel.json` builds `web/`. AI requests are sent directly from the browser to your OpenAI-compatible endpoint, so no additional application server is required.
+Import the repository into Vercel. The root `vercel.json` builds `web/`, and the official service origin defaults to `https://usa0.top`. Before using OAuth in production, use a stable HTTPS canvas origin and have the external official service register that origin for CORS and its exact `<origin>/oauth/callback` redirect URI. Wildcards and changing preview domains are not supported.
 
 ## Run locally
 
 ```bash
 git clone git@github.com:tkxs/Zero-canvas.git
-cd infinite-canvas/web
+cd Zero-canvas/web
 bun install
 bun run dev
 ```
@@ -31,8 +31,10 @@ docker run --rm -p 3000:3000 infinite-canvas
 
 ## First-time setup
 
-- Open Settings and enter your `Base URL`, `API Key`, and model names.
+- Sign in with USA0. An existing website login cookie is reused only by the official same-origin `/oauth/authorize` page; the canvas never reads or transmits the website cookie or website token.
+- After authorization, the canvas automatically synchronizes all official Keys. Each Key is an independent model source, and duplicate model names remain distinguishable by Key.
+- If the account has no Key, open Account Management, select an official website group, and create one. Creating or deleting a Key updates the official website, which remains the source of truth.
 - Open `/prompts` to fetch prompt repositories directly from the browser and cache them in IndexedDB.
 - Configure WebDAV if you want to synchronize canvases, assets, and generation history across devices.
 
-Canvas projects and My Assets are primarily stored in the browser. The API key is also stored locally and used by the browser to call OpenAI-compatible endpoints directly.
+There are no custom or local channels and no manual `Base URL`, API Key, or model setup. Full official Keys are kept only in runtime memory. Canvas projects and My Assets remain primarily stored in the browser.

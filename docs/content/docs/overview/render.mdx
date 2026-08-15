@@ -9,8 +9,12 @@ description: Deploy USA零 with Render
 
 1. Select **Deploy to Render**.
 2. Sign in and connect GitHub as prompted.
-3. Confirm the deployment.
+3. Choose the stable production hostname you will keep.
+4. Have the external official service register the exact `https://<hostname>/oauth/callback` redirect URI and `https://<hostname>` CORS origin.
+5. Confirm the deployment.
 
-When deployment finishes, open the assigned `.onrender.com` domain.
+`USA0_ORIGIN` defaults to `https://usa0.top`. Override it only when using another official service deployment. HTTPS is required except for loopback HTTP. OAuth does not support wildcard origins, random preview domains, or changing deployment URLs, so an unregistered Render-assigned hostname is not sufficient by itself.
 
-The default configuration uses Render's free Web Service. It sleeps after a period of inactivity and wakes on the next request. Application data is primarily stored in the browser, and prompt repositories are fetched by the frontend. The free tier is suitable for evaluation and demos; use Vercel or configure WebDAV for longer-term use.
+All business pages require USA0 OAuth. After login, all official Keys synchronize automatically as independent model sources; duplicate model names remain distinguishable, and full Key values stay only in runtime memory. Users without a Key select an official website group and create one in Account Management. Create and delete operations update the official site as the source of truth.
+
+The default configuration uses Render's free Web Service. It sleeps after a period of inactivity and wakes on the next request. Canvas data is primarily stored in the browser, and prompt repositories are fetched by the frontend.

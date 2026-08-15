@@ -1,11 +1,10 @@
 import { App, Button, Form, Input, Modal, Progress, Select, Tabs } from "antd";
-import type { TFunction } from "i18next";
-import { Cloud, Download, LockKeyhole, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
+import { Cloud, Download, RefreshCw, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { ModelPicker } from "@/components/model-picker";
-import { ChannelEditorDrawer } from "@/components/layout/channel-editor-drawer";
 import { ConfigPromptSources } from "@/components/layout/config-prompt-sources";
 import { ConfigLocalStorage } from "@/components/layout/config-local-storage";
 import type { AppLocale } from "@/i18n";
@@ -13,8 +12,7 @@ import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { createModelChannel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
-import { getUsa0RuntimeApiKey } from "@/services/api/usa0-runtime";
+import { useConfigStore, type ConfigTabKey, type ModelCapability } from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -47,12 +45,11 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
     );
 }
 
-export function AppConfigPanel({ showDoneButton = false, initialTab = "channels" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
+export function AppConfigPanel({ showDoneButton = false, initialTab = "preferences" }: { showDoneButton?: boolean; initialTab?: ConfigTabKey }) {
     const { message } = App.useApp();
     const { i18n, t } = useTranslation();
     const configInputRef = useRef<HTMLInputElement>(null);
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
-    const [editingChannelId, setEditingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
@@ -65,18 +62,11 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
     const webdavReady = Boolean(webdav.url.trim());
-    const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     const locale = i18n.resolvedLanguage as AppLocale;
     useEffect(() => setActiveTab(initialTab), [initialTab]);
 
-    const saveConfig = (nextConfig: AiConfig) => {
-        (Object.keys(nextConfig) as Array<keyof AiConfig>).forEach((key) => updateConfig(key, nextConfig[key]));
-    };
-
     const finishConfig = () => {
-        const ready = config.channels.some((channel) => channel.baseUrl.trim() && (channel.source === "usa0" ? getUsa0RuntimeApiKey() : channel.apiKey.trim()) && channel.models.length);
         setConfigDialogOpen(false);
-        if (!ready) return;
         message.success(t(shouldPromptContinue ? "config.savedContinue" : "config.saved"));
         clearPromptContinue();
     };
@@ -90,26 +80,6 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
         } finally {
             if (configInputRef.current) configInputRef.current.value = "";
         }
-    };
-
-    const updateChannels = (channels: ModelChannel[]) => saveConfig(withChannels(config, channels));
-
-    const addChannel = () => {
-        const channel = createModelChannel({ name: t("config.channels.numberedName", { count: config.channels.length + 1 }) });
-        updateChannels([...config.channels, channel]);
-        setEditingChannelId(channel.id);
-    };
-
-    const deleteChannel = (id: string) => {
-        if (config.channels.length <= 1) {
-            message.warning(t("config.channels.keepOne"));
-            return;
-        }
-        updateChannels(config.channels.filter((channel) => channel.id !== id));
-    };
-
-    const saveChannel = (channel: ModelChannel) => {
-        updateChannels(config.channels.map((item) => (item.id === channel.id ? channel : item)));
     };
 
     const testWebdav = async () => {
@@ -180,47 +150,6 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                 activeKey={activeTab}
                 onChange={(key) => setActiveTab(key as ConfigTabKey)}
                 items={[
-                    {
-                        key: "channels",
-                        label: t("config.tabs.channels"),
-                        children: (
-                            <div>
-                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                                    <div className="text-xs text-stone-500">{t("config.channels.description")}</div>
-                                    <Button type="primary" icon={<Plus className="size-4" />} onClick={addChannel}>
-                                        {t("config.channels.add")}
-                                    </Button>
-                                </div>
-                                <div className="space-y-2">
-                                    {config.channels.map((channel) => (
-                                        <div key={channel.id} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-4 py-3 dark:border-stone-800">
-                                            <div className="min-w-0">
-                                                <div className="flex min-w-0 items-center gap-2">
-                                                    <div className="truncate text-sm font-semibold">{channel.name || t("config.channels.unnamed")}</div>
-                                                    {channel.source === "usa0" ? <LockKeyhole className="size-3.5 shrink-0 text-stone-400" aria-label={t("account.readOnlyChannel")} /> : null}
-                                                </div>
-                                                <div className="mt-1 truncate text-xs text-stone-500">
-                                                    {apiFormatLabel(channel.apiFormat, t)} · {t("config.channels.modelCount", { count: channel.models.length })} · {channel.baseUrl || t("config.channels.missingUrl")}
-                                                </div>
-                                            </div>
-                                            <div className="flex shrink-0 gap-2">
-                                                {channel.source === "manual" ? (
-                                                    <>
-                                                        <Button size="small" icon={<Pencil className="size-3.5" />} onClick={() => setEditingChannelId(channel.id)}>
-                                                            {t("common.edit")}
-                                                        </Button>
-                                                        <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => deleteChannel(channel.id)} />
-                                                    </>
-                                                ) : (
-                                                    <span className="text-xs text-stone-500">{t("account.readOnly")}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ),
-                    },
                     {
                         key: "preferences",
                         label: t("config.tabs.preferences"),
@@ -336,7 +265,6 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                     </Button>
                 </div>
             ) : null}
-            <ChannelEditorDrawer open={Boolean(editingChannel)} channel={editingChannel} onSave={saveChannel} onClose={() => setEditingChannelId("")} />
         </>
     );
 }
@@ -366,38 +294,8 @@ export function AppConfigModal() {
     );
 }
 
-function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
-    const next: AiConfig = {
-        ...config,
-        channels,
-        models: modelOptionsFromChannels(channels),
-        baseUrl: channels[0]?.baseUrl || config.baseUrl,
-        apiKey: channels[0]?.apiKey || config.apiKey,
-        apiFormat: channels[0]?.apiFormat || config.apiFormat,
-    };
-    return {
-        ...next,
-        imageModel: pickDefaultModel(next, "image", config.imageModel),
-        videoModel: pickDefaultModel(next, "video", config.videoModel),
-        textModel: pickDefaultModel(next, "text", config.textModel),
-        audioModel: pickDefaultModel(next, "audio", config.audioModel),
-    };
-}
-
-function pickDefaultModel(config: AiConfig, capability: ModelCapability, current: string) {
-    const options = selectableModelsByCapability(config, capability);
-    const normalized = normalizeModelOptionValue(current, config.channels);
-    return options.includes(normalized) ? normalized : options[0] || "";
-}
-
 function normalizeImageCount(value: string) {
     return String(Math.max(1, Math.min(15, Math.floor(Math.abs(Number(value)) || 3))));
-}
-
-function apiFormatLabel(apiFormat: ApiCallFormat, t: TFunction) {
-    if (apiFormat === "gemini") return "Gemini";
-    if (apiFormat === "ark") return t("config.protocols.ark");
-    return "OpenAI";
 }
 
 function formatWebdavTime(value: string, locale: AppLocale) {

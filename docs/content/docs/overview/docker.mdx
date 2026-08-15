@@ -9,7 +9,7 @@ description: Deploy USA零 with Docker Compose
 
 ```bash
 git clone git@github.com:tkxs/Zero-canvas.git
-cd infinite-canvas
+cd Zero-canvas
 docker compose up -d
 ```
 
@@ -20,6 +20,21 @@ Open `http://localhost:3000`.
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+## USA0 OAuth
+
+`USA0_ORIGIN` selects the external official service and defaults to `https://usa0.top`. Set it as a container environment variable only when using another official service deployment. HTTPS is required except for loopback HTTP origins.
+
+A production canvas deployment needs a stable origin. Before it can sign in, the external official service must register both the exact `<origin>/oauth/callback` redirect URI and the exact CORS origin. Wildcards, random preview domains, and changing deployment URLs are not supported.
+
+```yaml
+services:
+  app:
+    environment:
+      USA0_ORIGIN: https://usa0.top
+```
+
+All business pages require OAuth. All official Keys and models synchronize automatically, each Key remains an independent source even for duplicate model names, and full Key values are kept only in runtime memory.
 
 ## Documentation image
 
@@ -37,7 +52,7 @@ cd docs
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-The main application container only runs Next.js. Canvases, My Assets, generation history, and API keys are stored in the browser by default, while prompt repositories are fetched directly by the frontend. No persistent data volume is required for this data.
+The main application container serves the built Vite SPA. Canvases, My Assets, and generation history are stored in the browser by default, while prompt repositories are fetched directly by the frontend. Full official Keys are runtime-only, so no persistent data volume is required for this data.
 
 ## Optional analytics
 

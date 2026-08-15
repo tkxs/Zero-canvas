@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type Dispatch, type MutableR
 
 import i18n from "@/i18n";
 import { useAgentStore } from "@/stores/use-agent-store";
+import { ModelSourceUnavailableError, normalizeModelOptionValue, useConfigStore } from "@/stores/use-config-store";
 import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import type { CanvasNodeGenerationMode } from "@/components/canvas/canvas-node-prompt-panel";
 import type { CanvasConnection, CanvasNodeData, ContextMenuState, ViewportTransform } from "@/types/canvas";
@@ -42,7 +43,16 @@ export function useAgentBridge(params: AgentBridgeParams) {
     const agentSnapshot = useMemo<CanvasAgentSnapshot>(() => ({ projectId, title: projectTitle, nodes, connections, selectedNodeIds: Array.from(selectedNodeIds), viewport }), [connections, projectTitle, nodes, projectId, selectedNodeIds, viewport]);
     const applyAgentOps = useCallback(
         (ops?: CanvasAgentOp[]) => {
-            const safeOps = Array.isArray(ops) ? ops.filter((op) => op?.type) : [];
+            const channels = useConfigStore.getState().config.channels;
+            const safeOps = (Array.isArray(ops) ? ops.filter((op) => op?.type) : []).map((op) => {
+                if (op.type !== "add_node" && op.type !== "update_node") return op;
+                const model = op.metadata?.model ?? (op.type === "update_node" ? op.patch?.metadata?.model : undefined);
+                if (!model) return op;
+                const value = normalizeModelOptionValue(model, channels);
+                if (!value) throw new ModelSourceUnavailableError();
+                if (op.type === "add_node") return { ...op, metadata: { ...op.metadata, model: value } };
+                return { ...op, patch: op.patch ? { ...op.patch, metadata: { ...op.patch.metadata, model: value } } : undefined, metadata: { ...op.metadata, model: value } };
+            });
             const before = { projectId, title: projectTitle, nodes: nodesRef.current, connections: connectionsRef.current, selectedNodeIds: Array.from(selectedNodeIdsRef.current), viewport: viewportRef.current };
             const generationOps = safeOps.filter((op): op is Extract<CanvasAgentOp, { type: "run_generation" }> => op.type === "run_generation" && Boolean(op.nodeId));
             const next = applyCanvasAgentOps(

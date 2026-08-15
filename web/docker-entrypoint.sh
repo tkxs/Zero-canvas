@@ -11,12 +11,24 @@ sanitize_id() {
     printf '%s' "$1" | tr -cd 'A-Za-z0-9-'
 }
 
+sanitize_origin() {
+    value=$(printf '%s' "$1" | tr -cd 'A-Za-z0-9:/._-')
+    case "$value" in
+        http://*|https://*) ;;
+        *) value="https://usa0.top" ;;
+    esac
+    value=${value%/}
+    printf '%s' "$value"
+}
+
 GA4_ID=$(sanitize_id "${ANALYTICS_GA4_ID:-}")
 BAIDU_ID=$(sanitize_id "${ANALYTICS_BAIDU_ID:-}")
+USA0_ORIGIN_VALUE=$(sanitize_origin "${USA0_ORIGIN:-https://usa0.top}")
 
 cat > /usr/share/nginx/html/config.js <<EOF
 window.__RUNTIME_CONFIG__ = {
   ANALYTICS_GA4_ID: "${GA4_ID}",
-  ANALYTICS_BAIDU_ID: "${BAIDU_ID}"
+  ANALYTICS_BAIDU_ID: "${BAIDU_ID}",
+  USA0_ORIGIN: "${USA0_ORIGIN_VALUE}"
 };
 EOF

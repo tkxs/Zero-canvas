@@ -159,5 +159,5 @@ ctx.applyOps([
 
 ## 注意
 
-- 插件代码会在画布页面内**直接执行**,可访问浏览器本地数据(含 AI API Key)。发布前请自审,用户也只应安装可信来源。
+- 插件代码会在画布页面上下文中**直接执行**，发布前请自审，用户也只应安装可信来源。插件 SDK 只提供不透明的 `usa0-key-<Key ID>::<模型名>` 来源值和由宿主代执行的生成接口，不提供官网完整 Key；完整 Key 仅存在于宿主运行时内存，不进入持久化配置、配置导入导出、WebDAV、日志、错误信息、DOM、URL、`postMessage` 或 `BroadcastChannel`。
 - 交互控件记得 `onMouseDown={(e) => e.stopPropagation()}`(避免触发节点拖拽),滚动区域加 `onWheel={(e) => e.stopPropagation()}` 与容器 `data-canvas-no-zoom`(避免被画布缩放拦截)。

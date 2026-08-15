@@ -57,35 +57,12 @@ description: 当前项目已实现的主要功能
 
 ## AI 生成
 
-项目默认使用前台直连：前端使用浏览器本地配置的 Base URL、API Key 和 Model 直接请求 OpenAI 兼容接口，不再通过项目服务端转发 AI 请求。
+图片、视频、素材、提示词、画布和配置等业务页面统一使用 USA0 账号 OAuth 门禁。授权采用 Authorization Code + S256 PKCE；登录并取得可用 Key 后才能进入业务页面。
 
-OpenAI 兼容图像和文本能力继续复用现有接口：
-
-- `/v1/images/generations`：文生图。
-- `/v1/images/edits`：图生图/参考图编辑。
-- `/v1/responses`：文本问答、带图问答和在线 Agent 工具调用。
-- `/v1/models`：读取模型列表；火山方舟 Agent Plan 专属 `/api/plan/v3` 当前未提供 OpenAI `/models` 模型列表接口，需要手动填写模型名。
-
-视频能力支持两类接口：
-
-- OpenAI 风格视频：`POST /v1/videos`、`GET /v1/videos/{id}`、`GET /v1/videos/{id}/content`。
-- 火山方舟 Agent Plan / Seedance 2.0：Base URL 使用 `https://ark.cn-beijing.volces.com/api/plan/v3`，创建任务为 `POST /contents/generations/tasks`，查询任务为 `GET /contents/generations/tasks/{id}`，成功结果读取 `content.video_url`。
-
-Base URL 如果已经以 `/v1`、`/api/v3` 或 `/api/plan/v3` 结尾，系统不会再追加 `/v1`。因此 cpa 反代或火山方舟 Agent Plan 可以继续通过现有 Base URL + API Key + Model 方式配置，不需要新增火山生图 Provider。
-
-配置弹窗里的“拉取模型列表”会尝试真实请求 OpenAI `/models`，不会为 Agent Plan 伪造模型结果。如果火山方舟 Agent Plan 返回 404，请手动增加 `doubao-seedance-2.0` 或文档列出的其他模型名。
-
-可配置项：
-
-- Base URL。
-- API Key。
-- 默认模型。
-- 图片质量。
-- 图片比例。
-- 生成数量。
-- 视频模型。
-- 视频比例、清晰度、时长、生成声音和水印。
-- 自定义生图 / 视频接口的调用方式，灵活适配不同中转站与自建服务。
+- 授权后自动同步官网账号下全部 Key，并分别读取每个可用 Key 的模型。每个可用 Key 都是独立模型来源，同名模型也不会合并。
+- 模型选择按 `usa0-key-<Key ID>::<模型名>` 精确编码并保存。旧节点或进行中的任务如果找不到原账号、原 Key 或原凭证指纹，会明确失败，不会回退到另一个同名模型来源。
+- 支持从已同步来源选择默认图片、视频、文本和音频模型，并设置图片质量、比例、数量、透明背景、推理强度以及视频比例、清晰度、时长、声音和水印等生成参数。
+- 账号管理可同步全部 Key、在已有分组中明确创建 Key、确认后删除 Key，并查看单个 Key 的用量。分组的创建和删除需前往官网操作；账号、分组与 Key 状态均以官网为准。
 
 普通图片/文本节点可以直接输入提示词生成结果。生成配置节点可以读取上游节点内容，并按节点自己的配置批量生成多个图片或文本结果。生成配置节点支持预览当前提示词和参考图输入，并调整输入顺序。
 
@@ -120,6 +97,8 @@ Base URL 如果已经以 `/v1`、`/api/v3` 或 `/api/plan/v3` 结尾，系统不
 - 插件面板会显示插件版本，并对可升级的插件给出提醒。
 
 Codex App 插件的安装与使用见 [Codex App 插件](/zh-CN/docs/overview/codex-app-plugin)。
+
+节点插件在画布页面上下文中执行，只应安装可信来源。插件 SDK 只能取得不透明的模型来源值并调用宿主代执行的生成能力，不能取得官网完整 Key。
 
 ## 提示词库
 
@@ -159,14 +138,14 @@ Codex App 插件的安装与使用见 [Codex App 插件](/zh-CN/docs/overview/co
 
 ## 配置和同步
 
-- 当前版本不需要账号登录，也不再提供后台管理页面。
-- 配置与用户偏好弹窗支持多个 OpenAI 兼容渠道、默认模型、生成偏好和 WebDAV 同步设置。
-- 第三方提示词、WebDAV 和 AI 接口都由浏览器前端直连，不经过项目后端代理。
+- 业务页面需要先通过 USA0 OAuth 登录并同步至少一个可用官网 Key。
+- 配置与用户偏好支持默认模型、生成偏好、提示词来源和 WebDAV 同步设置，不提供运行时自定义渠道、Provider、Base URL、API Key 或动态模型脚本入口。
+- 配置导入导出与 WebDAV 不包含官网 Key 来源或完整 Key；提示词来源和 WebDAV 仍由浏览器前端直连。
 
 ## 当前限制
 
 - 画布项目和“我的素材”目前只保存在浏览器本地，不会随账号同步。
-- AI API Key 保存在浏览器本地，并由浏览器直接请求配置的 OpenAI 兼容接口；只适合个人或可信环境使用。
+- 官网完整 Key 只在当前运行时内存中使用，账号恢复后重新从官网同步，不写入浏览器持久化配置。
 - Seedance 本地参考视频/音频更建议使用公网可访问 URL；上游是否接受前端传入的本地数据取决于具体兼容接口。
 - Seedance 返回远程视频 URL 时，前端会尽量下载为本地 Blob 持久化；如果因 CORS 或网络限制无法下载，会保留远程 URL，后续是否可播放取决于上游 URL 的有效期。
 - 画布更适合桌面端使用，移动端触控体验还未系统完善。

@@ -9,6 +9,7 @@ import { navigationTools } from "@/constant/navigation-tools";
 import i18n from "@/i18n";
 import { cn } from "@/lib/utils";
 import { HomeCodeBackground } from "@/pages/home/components/home-code-background";
+import { useUsa0AuthStore } from "@/stores/use-usa0-auth-store";
 
 function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children?: ReactNode }) {
     return (
@@ -28,15 +29,30 @@ export default function IndexPage() {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const [primaryTool] = navigationTools;
+    const authStatus = useUsa0AuthStore((state) => state.status);
+    const pendingPath = useUsa0AuthStore((state) => state.pendingPath);
+    const requestAccess = useUsa0AuthStore((state) => state.requestAccess);
+    const clearPendingPath = useUsa0AuthStore((state) => state.clearPendingPath);
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
+
+    useEffect(() => {
+        if (authStatus !== "ready" || !pendingPath) return;
+        clearPendingPath();
+        navigate(pendingPath, { replace: true });
+    }, [authStatus, clearPendingPath, navigate, pendingPath]);
 
     useEffect(() => {
         void fetchPrompts({ pageSize: 12 })
             .then((data) => setPromptShowcase(data.items))
             .catch((error) => message.error(error instanceof Error ? error.message : i18n.t("home.promptError")));
     }, [message]);
+
+    const openTool = (path: string) => {
+        if (authStatus === "ready") navigate(path);
+        else requestAccess(path);
+    };
 
     return (
         <main className="relative isolate h-full overflow-y-auto bg-background text-stone-950 dark:text-stone-100">
@@ -48,10 +64,10 @@ export default function IndexPage() {
                         <Trans i18nKey="home.description" components={{ canvas: <Highlighter action="underline" color="#FF9800" />, content: <Highlighter action="highlight" color="#87CEFA" /> }} />
                     </p>
                     <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                        <Button type="primary" size="large" onClick={() => navigate(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-4" />} iconPlacement="end">
+                        <Button type="primary" size="large" onClick={() => openTool(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-4" />} iconPlacement="end">
                             {t("home.start")}
                         </Button>
-                        <Button size="large" onClick={() => navigate("/canvas")}>
+                        <Button size="large" onClick={() => openTool("/canvas")}>
                             {t("home.openCanvas")}
                         </Button>
                     </div>

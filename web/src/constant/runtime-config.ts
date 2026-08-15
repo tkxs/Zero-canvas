@@ -8,6 +8,7 @@
 type RuntimeConfig = {
     ANALYTICS_GA4_ID?: string; // GA4 measurement ID (G-XXXX)
     ANALYTICS_BAIDU_ID?: string; // Baidu Analytics site ID
+    USA0_ORIGIN?: string;
 };
 
 declare global {
@@ -17,6 +18,7 @@ declare global {
 }
 
 const runtime: RuntimeConfig = (typeof window !== "undefined" && window.__RUNTIME_CONFIG__) || {};
+const DEFAULT_USA0_ORIGIN = import.meta.env.DEV ? "http://localhost:8080" : "https://usa0.top";
 
 function read(key: keyof RuntimeConfig, buildTime: string | undefined, fallback = ""): string {
     const value = runtime[key];
@@ -27,3 +29,15 @@ function read(key: keyof RuntimeConfig, buildTime: string | undefined, fallback 
 
 export const ANALYTICS_GA4_ID = read("ANALYTICS_GA4_ID", import.meta.env.VITE_ANALYTICS_GA4_ID);
 export const ANALYTICS_BAIDU_ID = read("ANALYTICS_BAIDU_ID", import.meta.env.VITE_ANALYTICS_BAIDU_ID);
+export const USA0_ORIGIN = sanitizeOrigin(read("USA0_ORIGIN", import.meta.env.VITE_USA0_ORIGIN, DEFAULT_USA0_ORIGIN));
+
+function sanitizeOrigin(value: string) {
+    try {
+        const url = new URL(value);
+        const loopbackHttp = url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+        if ((url.protocol !== "https:" && !loopbackHttp) || url.username || url.password) return DEFAULT_USA0_ORIGIN;
+        return url.origin;
+    } catch {
+        return DEFAULT_USA0_ORIGIN;
+    }
+}

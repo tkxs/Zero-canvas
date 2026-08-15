@@ -5,7 +5,7 @@ description: 前端优先的本地开发方式
 
 # 本地开发
 
-当前主应用以 `web/` 前端为主，AI 请求由浏览器前台直连用户自己的 OpenAI 兼容接口。
+当前主应用以 `web/` 前端为主。业务页面统一使用 USA零 OAuth 和官网 Key，不提供自定义、本地渠道或手工接口凭证配置。
 
 ## 1. 启动前端
 
@@ -21,9 +21,13 @@ bun run dev
 http://localhost:3000
 ```
 
-## 2. 配置模型
+## 2. 登录并同步模型
 
-打开右上角配置弹窗，填写自己的 `Base URL`、`API Key` 和模型名。第三方提示词和 WebDAV 都由浏览器前端直连。
+源码开发和 `docker-compose.local.yml` 默认连接本地测试服务 `http://localhost:8080`，授权页为 `http://localhost:8080/oauth/authorize`，模型接口为 `http://localhost:8080/v1/models`。源码开发可通过 `VITE_USA0_ORIGIN` 覆盖，容器可通过 `USA0_ORIGIN` 覆盖；生产构建仍默认连接 `https://usa0.top`。本地回环地址允许使用 HTTP，非回环部署必须使用 HTTPS。
+
+进入业务页面前先登录 USA零账号。测试服务同源的 `/oauth/authorize` 页面可以自然复用其登录 Cookie，但画布请求不会携带该 Cookie，也不会读取或转发网站 Token。授权后自动同步服务端全部 Key 和模型；每个 Key 保持独立来源，同名模型也按 Key 区分。完整 Key 只存在于运行期内存，创建和删除 Key 都直接更新作为数据源的服务端。
+
+非回环开发来源必须由外部官方服务登记精确的 `<来源>/oauth/callback` 回调地址和 CORS 来源。第三方提示词和 WebDAV 也由浏览器前端直连。
 
 ## 3. 启动文档站
 
@@ -36,5 +40,7 @@ bun run dev
 ## 常见场景
 
 - 改画布、页面和交互：主要看 `web/`
+- 改 USA零 OAuth 和 Key 接口：主要看 `web/src/services/api/usa0-auth.ts`
+- 改仅运行期 Key 管理：主要看 `web/src/services/api/usa0-runtime.ts`
 - 改提示词缓存：主要看 `web/src/services/api/prompts.ts`
 - 改文档站内容：主要看 `docs/content/docs/`
