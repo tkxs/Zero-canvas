@@ -4,6 +4,7 @@ import {
     authorizeUsa0WithPopup,
     clearPersistedUsa0Session,
     fetchUsa0Keys,
+    fetchUsa0KeyUsage,
     fetchUsa0Models,
     fetchUsa0Profile,
     getOrCreateInstallationId,
@@ -13,6 +14,7 @@ import {
     savePersistedUsa0Session,
     USA0_ORIGIN,
     type Usa0ApiKey,
+    type Usa0KeyUsage,
     type Usa0PersistedSession,
     type Usa0Profile,
     Usa0RequestError,
@@ -30,12 +32,17 @@ type Usa0AuthStore = {
     keys: Usa0ApiKey[];
     selectedKeyId: number | null;
     selectedGroupName: string;
+    keyUsage: Usa0KeyUsage | null;
+    keyUsageLoading: boolean;
+    keyUsageError: string;
+    keyUsageUpdatedAt: number;
     error: string;
     accessToken: string;
     accessTokenExpiresAt: number;
     initialize: () => Promise<void>;
     login: () => Promise<void>;
     selectKey: (keyId: number) => Promise<void>;
+    refreshKeyUsage: () => Promise<void>;
     refreshModels: () => Promise<void>;
     logout: () => Promise<void>;
     setModalOpen: (open: boolean) => void;
@@ -43,6 +50,8 @@ type Usa0AuthStore = {
 
 const authChannel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("usa0-auth");
 let initialized = false;
+let keyUsageRequestId = 0;
+let keyUsageRequest: { keyId: number; requestId: number; promise: Promise<void> } | null = null;
 
 export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
     status: "idle",
@@ -51,6 +60,10 @@ export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
     keys: [],
     selectedKeyId: null,
     selectedGroupName: "",
+    keyUsage: null,
+    keyUsageLoading: false,
+    keyUsageError: "",
+    keyUsageUpdatedAt: 0,
     error: "",
     accessToken: "",
     accessTokenExpiresAt: 0,
@@ -98,13 +111,46 @@ export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
             applyUsa0Channel(models, key.key);
             const session = await getPersistedUsa0Session();
             if (session) await savePersistedUsa0Session({ ...session, selectedKeyId: keyId });
-            set({ selectedKeyId: keyId, selectedGroupName: key.group?.name || "", status: "authenticated", error: "" });
+            const keyChanged = get().selectedKeyId !== keyId;
+            set({
+                selectedKeyId: keyId,
+                selectedGroupName: key.group?.name || "",
+                ...(keyChanged ? { keyUsage: null, keyUsageError: "", keyUsageUpdatedAt: 0 } : {}),
+                status: "authenticated",
+                error: "",
+            });
+            void get().refreshKeyUsage();
             authChannel?.postMessage({ type: "selection-updated" });
         } catch (error) {
             if (error instanceof Usa0RequestError && [403, 404, 409].includes(error.status || 0) && get().selectedKeyId === keyId) await clearSelectedKey();
             set({ error: authErrorMessage(error) });
             throw error;
         }
+    },
+    refreshKeyUsage: async () => {
+        const keyId = get().selectedKeyId;
+        if (keyUsageRequest?.keyId === keyId) return keyUsageRequest.promise;
+        const key = get().keys.find((item) => item.id === keyId);
+        if (!key) {
+            set({ keyUsage: null, keyUsageLoading: false, keyUsageError: "", keyUsageUpdatedAt: 0 });
+            return;
+        }
+        const requestId = ++keyUsageRequestId;
+        const promise = (async () => {
+            set({ keyUsageLoading: true, keyUsageError: "" });
+            try {
+                const usage = await fetchUsa0KeyUsage(key.key);
+                if (get().selectedKeyId !== keyId || keyUsageRequestId !== requestId) return;
+                set({ keyUsage: usage, keyUsageLoading: false, keyUsageError: "", keyUsageUpdatedAt: Date.now() });
+            } catch (error) {
+                if (get().selectedKeyId !== keyId || keyUsageRequestId !== requestId) return;
+                set({ keyUsageLoading: false, keyUsageError: authErrorMessage(error) });
+            }
+        })().finally(() => {
+            if (keyUsageRequest?.requestId === requestId) keyUsageRequest = null;
+        });
+        keyUsageRequest = { keyId, requestId, promise };
+        return promise;
     },
     refreshModels: async () => {
         const keyId = get().selectedKeyId;
@@ -146,8 +192,10 @@ async function acceptToken(token: Usa0TokenResponse, previous: Usa0PersistedSess
 }
 
 async function loadAccount(accessToken: string, selectedKeyId: number | null) {
+    keyUsageRequestId += 1;
+    keyUsageRequest = null;
     const [profile, keys] = await Promise.all([fetchUsa0Profile(accessToken), fetchUsa0Keys(accessToken)]);
-    useUsa0AuthStore.setState({ profile, keys, status: "authenticated", error: "", selectedKeyId: null, selectedGroupName: "" });
+    useUsa0AuthStore.setState({ profile, keys, status: "authenticated", error: "", selectedKeyId: null, selectedGroupName: "", keyUsage: null, keyUsageLoading: false, keyUsageError: "", keyUsageUpdatedAt: 0 });
     if (!selectedKeyId) return;
     const key = keys.find((item) => item.id === selectedKeyId);
     if (!key || keyDisabledReason(key)) {
@@ -162,6 +210,7 @@ async function loadAccount(accessToken: string, selectedKeyId: number | null) {
         if (!models.length) throw new Error("No models available");
         applyUsa0Channel(models, key.key);
         useUsa0AuthStore.setState({ selectedKeyId, selectedGroupName: key.group?.name || "" });
+        void useUsa0AuthStore.getState().refreshKeyUsage();
     } catch {
         setUsa0RuntimeApiKey("");
         removeUsa0Channel();
@@ -222,19 +271,23 @@ async function syncFromPersistedSession() {
 }
 
 async function clearLocalSession(broadcast: boolean) {
+    keyUsageRequestId += 1;
+    keyUsageRequest = null;
     await clearPersistedUsa0Session();
     setUsa0RuntimeApiKey("");
     removeUsa0Channel();
-    useUsa0AuthStore.setState({ status: "idle", profile: null, keys: [], selectedKeyId: null, selectedGroupName: "", error: "", accessToken: "", accessTokenExpiresAt: 0 });
+    useUsa0AuthStore.setState({ status: "idle", profile: null, keys: [], selectedKeyId: null, selectedGroupName: "", keyUsage: null, keyUsageLoading: false, keyUsageError: "", keyUsageUpdatedAt: 0, error: "", accessToken: "", accessTokenExpiresAt: 0 });
     if (broadcast) authChannel?.postMessage({ type: "logout" });
 }
 
 async function clearSelectedKey() {
+    keyUsageRequestId += 1;
+    keyUsageRequest = null;
     setUsa0RuntimeApiKey("");
     removeUsa0Channel();
     const session = await getPersistedUsa0Session();
     if (session) await savePersistedUsa0Session({ ...session, selectedKeyId: null });
-    useUsa0AuthStore.setState({ selectedKeyId: null, selectedGroupName: "" });
+    useUsa0AuthStore.setState({ selectedKeyId: null, selectedGroupName: "", keyUsage: null, keyUsageLoading: false, keyUsageError: "", keyUsageUpdatedAt: 0 });
 }
 
 function applyUsa0Channel(availableModels: Array<{ name: string; capabilities: ModelCapability[] }>, apiKey: string) {

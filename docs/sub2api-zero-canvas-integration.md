@@ -25,6 +25,7 @@
 | 读取用户资料 | `GET /api/v1/app/me` |
 | 读取用户已有 API Key | `GET /api/v1/app/keys` |
 | 查询所选 Key 可用模型 | `GET /v1/models` |
+| 查询所选 Key 的余额、额度与 Token 用量 | `GET /v1/usage` |
 | 文本、图片和视频调用 | 现有 `/v1/*` 网关接口 |
 
 ### 不需要新增的能力
@@ -87,6 +88,7 @@ Zero-canvas 是运行在浏览器中的静态前端，会从本地 Origin 直接
 - `/api/v1/app/me`
 - `/api/v1/app/keys`
 - `/v1/models`
+- `/v1/usage`
 - `/v1/chat/completions`、`/v1/images/*`、`/v1/videos/*` 等实际模型接口
 
 ### 环境变量解析
@@ -193,6 +195,7 @@ GET /api/v1/app/me
 GET /api/v1/app/keys?page=1&page_size=100
 用户选择一个启用、未过期、未耗尽且已绑定分组的 Key
 GET /v1/models，Authorization 使用所选 API Key
+GET /v1/usage，Authorization 使用所选 API Key
 ```
 
 `/api/v1/app/keys` 继续使用原有返回结构，画布需要以下字段：
@@ -216,6 +219,8 @@ GET /v1/models，Authorization 使用所选 API Key
 ```
 
 模型平台和可调用范围由 `/v1/models` 现有 API Key 鉴权与分组逻辑决定。Zero-canvas 根据返回的模型名称在前端归类为文本、图片或视频能力，不要求 sub2api 返回画布专用能力字段。
+
+个人信息浮窗打开时通过 `/v1/usage?days=30&timezone=<浏览器时区>` 刷新当前 Key 的用量，只保留并展示 USD `balance`/`remaining`、`quota.limit`/`used`/`remaining`、`usage.today.total_tokens`、`usage.total.total_tokens`、`daily_usage[].date`/`total_tokens` 和实时 `status`。这些数据属于当前 Key，不作为账号全局余额或跨 Key 汇总；完整响应不持久化、不写入日志。该请求继续使用 API Key 鉴权，不新增 OAuth scope。
 
 ## 7. 部署步骤
 
@@ -283,6 +288,11 @@ curl -i -X OPTIONS 'https://usa0.top/v1/models' \
   -H 'Origin: http://localhost:3000' \
   -H 'Access-Control-Request-Method: GET' \
   -H 'Access-Control-Request-Headers: authorization'
+
+curl -i -X OPTIONS 'https://usa0.top/v1/usage' \
+  -H 'Origin: http://localhost:3000' \
+  -H 'Access-Control-Request-Method: GET' \
+  -H 'Access-Control-Request-Headers: authorization'
 ```
 
 ### 完整浏览器流程
@@ -291,6 +301,7 @@ curl -i -X OPTIONS 'https://usa0.top/v1/models' \
 - 网站未登录：密码、TOTP、第三方 OAuth 或 Passkey 登录后继续原授权请求。
 - 同意授权：回到本地画布并成功读取资料和 Key。
 - 选择 Key：`/v1/models` 返回该 Key 分组可用模型。
+- 打开个人信息：`/v1/usage` 返回该 Key 的 USD 余额/额度、今日 Token 和累计 Token，且浏览器跨源请求通过。
 - 刷新页面：使用 refresh token 恢复应用授权和已选 Key。
 - 退出登录：调用 revoke 并清除画布本地会话，不删除网站 API Key。
 
@@ -304,6 +315,7 @@ curl -i -X OPTIONS 'https://usa0.top/v1/models' \
 | OPTIONS 返回 `403` | Origin 未进入 CORS 白名单，或代理拦截 OPTIONS | 检查环境变量、容器环境和反向代理 |
 | 授权页正常但 token 交换失败 | `/app-auth/token` 的 CORS 或新客户端未生效 | 检查 token 预检和运行镜像版本 |
 | 能登录但模型列表失败 | `/v1/models` CORS、Key 状态或分组配置异常 | 使用同一个 Key 直接请求 `/v1/models` 排查 |
+| 个人信息没有余额或 Token | `/v1/usage` CORS、Key 状态或网关版本异常 | 使用同一个 Key 直接请求 `/v1/usage` 并检查返回字段 |
 
 ## 10. 安全要求
 
@@ -346,5 +358,5 @@ frontend/src/views/__tests__/AppAuthorizationView.spec.ts
 现有 app-auth token、refresh、revoke 协议
 现有 /api/v1/app/me
 现有 /api/v1/app/keys
-现有 /v1/models 和模型网关调用链
+现有 /v1/models、/v1/usage 和模型网关调用链
 ```

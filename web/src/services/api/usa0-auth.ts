@@ -50,6 +50,29 @@ export type Usa0Model = {
     capabilities: Array<"text" | "image" | "video">;
 };
 
+type Usa0UsageValue = number | string | null;
+
+export type Usa0UsageTotals = {
+    requests?: Usa0UsageValue;
+    input_tokens?: Usa0UsageValue;
+    output_tokens?: Usa0UsageValue;
+    cache_creation_tokens?: Usa0UsageValue;
+    cache_read_tokens?: Usa0UsageValue;
+    total_tokens?: Usa0UsageValue;
+    actual_cost?: Usa0UsageValue;
+};
+
+export type Usa0KeyUsage = {
+    mode?: string;
+    status?: string;
+    planName?: string;
+    balance?: Usa0UsageValue;
+    remaining?: Usa0UsageValue;
+    quota?: { limit?: Usa0UsageValue; used?: Usa0UsageValue; remaining?: Usa0UsageValue } | null;
+    usage?: { today?: Usa0UsageTotals; total?: Usa0UsageTotals } | null;
+    daily_usage?: Array<Usa0UsageTotals & { date: string }>;
+};
+
 type ApiEnvelope<T> = { success: boolean; data: T; message?: string; error?: { code?: string; message?: string } };
 type GatewayModel = { id?: string; name?: string; display_name?: string };
 type OAuthCallbackMessage = { type: "usa0-oauth-callback"; code?: string; state?: string; error?: string; errorDescription?: string };
@@ -152,6 +175,29 @@ export async function fetchUsa0Profile(accessToken: string) {
 export async function fetchUsa0Keys(accessToken: string) {
     const result = await appGet<{ items: Usa0ApiKey[]; total: number }>("/api/v1/app/keys?page=1&page_size=100", accessToken);
     return result.items;
+}
+
+export async function fetchUsa0KeyUsage(apiKey: string) {
+    try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const response = await axios.get<Usa0KeyUsage>(`${USA0_ORIGIN}/v1/usage`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            params: { days: 30, timezone },
+        });
+        const data = response.data;
+        return {
+            mode: data.mode,
+            status: data.status,
+            planName: data.planName,
+            balance: data.balance,
+            remaining: data.remaining,
+            quota: data.quota ? { limit: data.quota.limit, used: data.quota.used, remaining: data.quota.remaining } : null,
+            usage: data.usage ? { today: { total_tokens: data.usage.today?.total_tokens }, total: { total_tokens: data.usage.total?.total_tokens } } : null,
+            daily_usage: data.daily_usage?.map((item) => ({ date: item.date, total_tokens: item.total_tokens })),
+        } satisfies Usa0KeyUsage;
+    } catch (error) {
+        throw safeAuthError(error, "无法读取所选 API Key 的用量信息");
+    }
 }
 
 export async function fetchUsa0Models(apiKey: string) {

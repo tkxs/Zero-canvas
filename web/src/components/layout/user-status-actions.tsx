@@ -4,6 +4,7 @@ import { Globe2, Keyboard, MessageCircle, Puzzle, Settings2, UserRound } from "l
 import { useTranslation } from "react-i18next";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import { Usa0AccountPopover } from "@/components/layout/usa0-account-popover";
 import { VersionReleaseModal } from "@/components/layout/version-release-modal";
 import { DOCS_URL } from "@/constant/env";
 import { changeAppLocale, type AppLocale } from "@/i18n";
@@ -26,7 +27,6 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const setTheme = useThemeStore((state) => state.setTheme);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const profile = useUsa0AuthStore((state) => state.profile);
-    const setAccountOpen = useUsa0AuthStore((state) => state.setModalOpen);
     const copyText = useCopyText();
     const canvasTheme = canvasThemes[theme];
     const naturalIconClass = "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-stone-600 transition-colors hover:bg-black/5 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-white/10 dark:hover:text-white [&_svg]:size-4";
@@ -38,9 +38,11 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
 
     return (
         <div className="inline-flex shrink-0 items-center gap-1">
-            <button type="button" className={naturalIconClass} style={iconStyle} onClick={() => setAccountOpen(true)} aria-label={t("account.title")} title={profile?.username || profile?.email || t("account.title")}>
-                {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="size-5 rounded-full object-cover" referrerPolicy="no-referrer" /> : <UserRound className="size-4" />}
-            </button>
+            <Usa0AccountPopover>
+                <button type="button" className={naturalIconClass} style={iconStyle} aria-label={t("account.title")} title={profile?.username || profile?.email || t("account.title")}>
+                    {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="size-5 rounded-full object-cover" referrerPolicy="no-referrer" /> : <UserRound className="size-4" />}
+                </button>
+            </Usa0AccountPopover>
             {onOpenPlugins ? (
                 <button type="button" className={naturalIconClass} style={iconStyle} onClick={onOpenPlugins} aria-label={t("topNav.plugins")} title={t("topNav.plugins")}>
                     <Puzzle className="size-4" />
