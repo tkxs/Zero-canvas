@@ -3,8 +3,8 @@ import { create } from "zustand";
 import {
     authorizeUsa0WithPopup,
     clearPersistedUsa0Session,
-    fetchUsa0KeyModels,
     fetchUsa0Keys,
+    fetchUsa0Models,
     fetchUsa0Profile,
     getOrCreateInstallationId,
     getPersistedUsa0Session,
@@ -13,7 +13,6 @@ import {
     savePersistedUsa0Session,
     USA0_ORIGIN,
     type Usa0ApiKey,
-    type Usa0KeyModels,
     type Usa0PersistedSession,
     type Usa0Profile,
     Usa0RequestError,
@@ -91,11 +90,15 @@ export const useUsa0AuthStore = create<Usa0AuthStore>((set, get) => ({
         try {
             const key = get().keys.find((item) => item.id === keyId);
             if (!key || keyDisabledReason(key)) throw new Error(keyDisabledReason(key) || "API Key 不可用");
-            const result = await withAccessToken((accessToken) => fetchUsa0KeyModels(accessToken, keyId));
-            applyUsa0Channel(result, key.key);
+            const models = await fetchUsa0Models(key.key);
+            if (!models.length) {
+                if (get().selectedKeyId === keyId) await clearSelectedKey();
+                throw new Error("所选分组暂无可用模型，请先在网站为该分组绑定可用账号并配置模型");
+            }
+            applyUsa0Channel(models, key.key);
             const session = await getPersistedUsa0Session();
             if (session) await savePersistedUsa0Session({ ...session, selectedKeyId: keyId });
-            set({ selectedKeyId: keyId, selectedGroupName: result.group.name, status: "authenticated", error: "" });
+            set({ selectedKeyId: keyId, selectedGroupName: key.group?.name || "", status: "authenticated", error: "" });
             authChannel?.postMessage({ type: "selection-updated" });
         } catch (error) {
             if (error instanceof Usa0RequestError && [403, 404, 409].includes(error.status || 0) && get().selectedKeyId === keyId) await clearSelectedKey();
@@ -155,9 +158,10 @@ async function loadAccount(accessToken: string, selectedKeyId: number | null) {
         return;
     }
     try {
-        const result = await fetchUsa0KeyModels(accessToken, selectedKeyId);
-        applyUsa0Channel(result, key.key);
-        useUsa0AuthStore.setState({ selectedKeyId, selectedGroupName: result.group.name });
+        const models = await fetchUsa0Models(key.key);
+        if (!models.length) throw new Error("No models available");
+        applyUsa0Channel(models, key.key);
+        useUsa0AuthStore.setState({ selectedKeyId, selectedGroupName: key.group?.name || "" });
     } catch {
         setUsa0RuntimeApiKey("");
         removeUsa0Channel();
@@ -233,8 +237,8 @@ async function clearSelectedKey() {
     useUsa0AuthStore.setState({ selectedKeyId: null, selectedGroupName: "" });
 }
 
-function applyUsa0Channel(result: Usa0KeyModels, apiKey: string) {
-    const models: ChannelModel[] = result.models.map((model) => ({
+function applyUsa0Channel(availableModels: Array<{ name: string; capabilities: ModelCapability[] }>, apiKey: string) {
+    const models: ChannelModel[] = availableModels.map((model) => ({
         name: model.name,
         capabilities: model.capabilities,
         script: model.capabilities.includes("video") ? USA0_VIDEO_SCRIPT : undefined,

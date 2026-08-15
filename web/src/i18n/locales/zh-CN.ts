@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "USA零",
-        description: "USA零 AI 画布创作工具",
+        title: "USA零画布",
+        description: "USA零画布 AI 创作工具",
     },
     theme: { toggle: "切换主题" },
     common: {
@@ -204,9 +204,9 @@ export default {
         empty: "还没有生成视频",
     },
     canvas: {
-        defaultTitle: "USA零 {{count}}",
+        defaultTitle: "USA零画布 {{count}}",
         library: "画布库",
-        title: "USA零",
+        title: "USA零画布",
         imported: "已导入 {{count}} 个画布",
         importFailed: "导入失败，请选择有效的画布压缩包",
         opening: "正在打开画布...",
@@ -250,7 +250,7 @@ export default {
             select: "选择 {{name}}", stats: "{{nodes}} 个节点 · {{connections}} 条连线", updated: "更新于 {{date}}", saveName: "保存名称", cancelRename: "取消重命名", export: "导出", rename: "重命名", delete: "删除",
             deleteTitle: "删除画布？", deleteDescription: "将删除 {{count}} 个画布，里面的节点和连线也会一起移除。",
         },
-        export: { defaultProjectName: "USA零", defaultNodesName: "画布元素", item: "元素" },
+        export: { defaultProjectName: "USA零画布", defaultNodesName: "画布元素", item: "元素" },
         createMenu: {
             fromNode: "引用该节点生成", close: "关闭", text: "文本生成", textDescription: "脚本、广告词、品牌文案", image: "图片生成", video: "视频生成", audio: "音频参考", config: "配置节点", configDescription: "模型、尺寸、数量和输入顺序", select: "选择节点",
         },
@@ -336,14 +336,19 @@ export default {
     account: {
         title: "USA零账号",
         connectTitle: "连接网站账号",
-        connectDescription: "登录将在 usa0.top 独立窗口中完成，可继续使用网站已有的密码、TOTP、OAuth 或 Passkey 登录方式。",
+        connectDescription: "登录将在本地 sub2api 独立窗口中完成，可继续使用已有的密码、TOTP、OAuth 或 Passkey 登录方式。",
         login: "登录并授权",
         openWebsite: "打开 USA零网站",
         connected: "已连接",
         apiKey: "模型 API Key",
         selectKey: "选择一个已有 API Key",
+        noKeys: "当前账号还没有 API Key，请先在 USA零网站创建并绑定分组。",
         keyDescription: "仅同步所选 Key 绑定分组下可调用的模型，退出不会删除网站上的 Key。",
         group: "分组：{{name}}",
+        syncedModels: "已同步模型（{{count}}）",
+        noSyncedModels: "当前没有获取到可用模型",
+        modelsRefreshed: "已获取 {{count}} 个模型",
+        modelCapabilities: { text: "文本", image: "图片", video: "视频", audio: "音频" },
         refreshModels: "刷新模型",
         logout: "退出登录",
         readOnly: "只读",
@@ -352,7 +357,7 @@ export default {
     },
     home: {
         promptError: "获取提示词失败",
-        description: "在 <canvas>USA零</canvas> 中生成、连接和重组 <content>图片、文字与图形</content>，让创作从单次生成变成连续推演。",
+        description: "在 <canvas>USA零画布</canvas> 中生成、连接和重组 <content>图片、文字与图形</content>，让创作从单次生成变成连续推演。",
         start: "开始使用",
         openCanvas: "打开画布",
         showcaseTitle: "沉淀每一次好结果",

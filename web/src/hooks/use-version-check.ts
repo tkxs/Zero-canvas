@@ -35,6 +35,7 @@ export function useVersionCheck() {
     const hasNewVersion = isNewerVersion(latestVersion, currentVersion);
 
     const checkLatestVersion = useCallback(async () => {
+        if (import.meta.env.DEV) return true;
         try {
             const response = await fetch(latestVersionUrl);
             if (!response.ok) return false;
@@ -48,6 +49,10 @@ export function useVersionCheck() {
 
     const checkLatestRelease = useCallback(
         async (showMessage = false) => {
+            if (import.meta.env.DEV) {
+                if (showMessage) message.success(t("version.updated"));
+                return true;
+            }
             setChecking(true);
             try {
                 const [versionResponse, changelogResponse] = await Promise.all([fetch(latestVersionUrl), fetch(latestChangelogUrl)]);

@@ -1,9 +1,10 @@
 import axios from "axios";
 import localforage from "localforage";
 
-export const USA0_ORIGIN = "https://usa0.top";
+export const USA0_ORIGIN = "http://localhost:8080";
+export const USA0_WEBSITE_URL = `${USA0_ORIGIN}/home`;
 export const USA0_CLIENT_ID = "zero-canvas-web";
-export const USA0_SCOPES = "profile:read keys:read models:read offline_access";
+export const USA0_SCOPES = "profile:read keys:read offline_access";
 
 const PKCE_VERIFIER_KEY = "usa0:oauth:verifier";
 const PKCE_STATE_KEY = "usa0:oauth:state";
@@ -40,6 +41,7 @@ export type Usa0ApiKey = {
     quota: number;
     quota_used: number;
     expires_at: string | null;
+    group?: { id: number; name: string; platform: string } | null;
 };
 
 export type Usa0Model = {
@@ -48,13 +50,8 @@ export type Usa0Model = {
     capabilities: Array<"text" | "image" | "video">;
 };
 
-export type Usa0KeyModels = {
-    key: { id: number; name: string; group_id: number };
-    group: { id: number; name: string; platform: string };
-    models: Usa0Model[];
-};
-
 type ApiEnvelope<T> = { success: boolean; data: T; message?: string; error?: { code?: string; message?: string } };
+type GatewayModel = { id?: string; name?: string; display_name?: string };
 type OAuthCallbackMessage = { type: "usa0-oauth-callback"; code?: string; state?: string; error?: string; errorDescription?: string };
 
 export class Usa0RequestError extends Error {
@@ -157,8 +154,22 @@ export async function fetchUsa0Keys(accessToken: string) {
     return result.items;
 }
 
-export async function fetchUsa0KeyModels(accessToken: string, keyId: number) {
-    return appGet<Usa0KeyModels>(`/api/v1/app/keys/${keyId}/models`, accessToken);
+export async function fetchUsa0Models(apiKey: string) {
+    try {
+        const response = await axios.get<{ data?: GatewayModel[] }>(`${USA0_ORIGIN}/v1/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        const items = Array.isArray(response.data?.data) ? response.data.data : [];
+        const seen = new Set<string>();
+        return items.flatMap((item) => {
+            const name = String(item.id || item.name || item.display_name || "").trim();
+            if (!name || seen.has(name)) return [];
+            seen.add(name);
+            return [{ name, platform: "", capabilities: inferModelCapabilities(name) } satisfies Usa0Model];
+        });
+    } catch (error) {
+        throw safeAuthError(error, "无法读取所选 API Key 的模型列表");
+    }
 }
 
 async function exchangeAuthorizationCode(code: string, redirectUri: string, verifier: string) {
@@ -236,9 +247,17 @@ function bytesToBase64Url(value: Uint8Array) {
     return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function inferModelCapabilities(name: string): Usa0Model["capabilities"] {
+    const value = name.toLowerCase();
+    if (value.startsWith("grok-imagine-video")) return ["video"];
+    if ((value.includes("image") || value.includes("imagen")) && !value.includes("vision")) return ["image"];
+    return ["text"];
+}
+
 function safeAuthError(error: unknown, fallback: string) {
     if (error instanceof Error && !axios.isAxiosError(error)) return error;
     if (axios.isAxiosError(error)) {
+        if (!error.response) return new Usa0RequestError("无法连接本地 sub2api，请确认服务已启动并允许当前画布地址跨域访问");
         const data = error.response?.data as { error_description?: unknown; error?: { message?: unknown }; message?: unknown } | undefined;
         const message = data?.error_description || data?.error?.message || data?.message;
         if (typeof message === "string" && message.length <= 200) return new Usa0RequestError(message, error.response?.status);

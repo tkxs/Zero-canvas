@@ -1,7 +1,7 @@
 export default {
     meta: {
-        title: "USA零",
-        description: "USA零 AI canvas creation workspace",
+        title: "USA零画布",
+        description: "USA零画布 AI creation workspace",
     },
     theme: { toggle: "Toggle theme" },
     common: {
@@ -204,9 +204,9 @@ export default {
         empty: "No video generated yet",
     },
     canvas: {
-        defaultTitle: "USA零 {{count}}",
+        defaultTitle: "USA零画布 {{count}}",
         library: "Canvas library",
-        title: "USA零",
+        title: "USA零画布",
         imported: "Imported {{count}} canvases",
         importFailed: "Import failed. Select a valid canvas package.",
         opening: "Opening canvas...",
@@ -250,7 +250,7 @@ export default {
             select: "Select {{name}}", stats: "{{nodes}} nodes · {{connections}} connections", updated: "Updated {{date}}", saveName: "Save name", cancelRename: "Cancel rename", export: "Export", rename: "Rename", delete: "Delete",
             deleteTitle: "Delete canvases?", deleteDescription: "This will delete {{count}} canvases along with their nodes and connections.",
         },
-        export: { defaultProjectName: "USA零", defaultNodesName: "Canvas elements", item: "Element" },
+        export: { defaultProjectName: "USA零画布", defaultNodesName: "Canvas elements", item: "Element" },
         createMenu: {
             fromNode: "Generate from this node", close: "Close", text: "Generate text", textDescription: "Scripts, ad copy, and brand content", image: "Generate image", video: "Generate video", audio: "Audio reference", config: "Configuration node", configDescription: "Model, size, count, and input order", select: "Select a node",
         },
@@ -336,14 +336,19 @@ export default {
     account: {
         title: "USA0 Account",
         connectTitle: "Connect your website account",
-        connectDescription: "Sign-in opens on usa0.top and keeps the website's password, TOTP, OAuth, and Passkey flows.",
+        connectDescription: "Sign-in opens on the local sub2api instance and keeps its password, TOTP, OAuth, and Passkey flows.",
         login: "Sign in and authorize",
         openWebsite: "Open USA0 website",
         connected: "Connected",
         apiKey: "Model API key",
         selectKey: "Select an existing API key",
+        noKeys: "This account has no API keys. Create one and bind it to a group on the USA0 website first.",
         keyDescription: "Only models available to the selected key's group are synced. Signing out does not delete the key from the website.",
         group: "Group: {{name}}",
+        syncedModels: "Synced models ({{count}})",
+        noSyncedModels: "No available models were found",
+        modelsRefreshed: "Fetched {{count}} models",
+        modelCapabilities: { text: "Text", image: "Image", video: "Video", audio: "Audio" },
         refreshModels: "Refresh models",
         logout: "Sign out",
         readOnly: "Read only",
@@ -352,7 +357,7 @@ export default {
     },
     home: {
         promptError: "Failed to load prompts",
-        description: "Generate, connect, and reshape <content>images, text, and graphics</content> in <canvas>USA零</canvas>, turning one-off generations into a continuous creative process.",
+        description: "Generate, connect, and reshape <content>images, text, and graphics</content> in <canvas>USA零画布</canvas>, turning one-off generations into a continuous creative process.",
         start: "Get started",
         openCanvas: "Open canvas",
         showcaseTitle: "Keep every great result",

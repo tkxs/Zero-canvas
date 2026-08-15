@@ -1,12 +1,14 @@
-import { Alert, Avatar, Button, Modal, Select, Tag } from "antd";
+import { Alert, App, Avatar, Button, Modal, Select, Tag } from "antd";
 import { ExternalLink, LogIn, LogOut, RefreshCw, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { USA0_ORIGIN } from "@/services/api/usa0-auth";
+import { USA0_WEBSITE_URL } from "@/services/api/usa0-auth";
+import { USA0_CHANNEL_ID, useConfigStore } from "@/stores/use-config-store";
 import { keyDisabledReason, useUsa0AuthStore } from "@/stores/use-usa0-auth-store";
 
 export function Usa0AccountModal() {
+    const { message } = App.useApp();
     const { t } = useTranslation();
     const [working, setWorking] = useState(false);
     const modalOpen = useUsa0AuthStore((state) => state.modalOpen);
@@ -15,6 +17,8 @@ export function Usa0AccountModal() {
     const keys = useUsa0AuthStore((state) => state.keys);
     const selectedKeyId = useUsa0AuthStore((state) => state.selectedKeyId);
     const selectedGroupName = useUsa0AuthStore((state) => state.selectedGroupName);
+    const websiteChannel = useConfigStore((state) => state.config.channels.find((channel) => channel.id === USA0_CHANNEL_ID));
+    const syncedModels = websiteChannel?.models || [];
     const error = useUsa0AuthStore((state) => state.error);
     const setModalOpen = useUsa0AuthStore((state) => state.setModalOpen);
     const login = useUsa0AuthStore((state) => state.login);
@@ -34,6 +38,13 @@ export function Usa0AccountModal() {
             setWorking(false);
         }
     };
+
+    const refresh = () =>
+        run(async () => {
+            await refreshModels();
+            const channel = useConfigStore.getState().config.channels.find((item) => item.id === USA0_CHANNEL_ID);
+            message.success(t("account.modelsRefreshed", { count: channel?.models.length || 0 }));
+        });
 
     const options = keys.map((key) => {
         const reason = keyDisabledReason(key);
@@ -64,7 +75,7 @@ export function Usa0AccountModal() {
                     <Button type="primary" block icon={<LogIn className="size-4" />} loading={loading} onClick={() => void run(login)}>
                         {t("account.login")}
                     </Button>
-                    <a href={USA0_ORIGIN} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-1 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200">
+                    <a href={USA0_WEBSITE_URL} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center justify-center gap-1 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200">
                         {t("account.openWebsite")}
                         <ExternalLink className="size-3" />
                     </a>
@@ -85,17 +96,45 @@ export function Usa0AccountModal() {
                             <label className="text-sm font-medium">{t("account.apiKey")}</label>
                             {selectedGroupName ? <span className="truncate text-xs text-stone-500">{t("account.group", { name: selectedGroupName })}</span> : null}
                         </div>
-                        <Select
-                            className="w-full"
-                            placeholder={t("account.selectKey")}
-                            value={selectedKeyId || undefined}
-                            options={options}
-                            optionLabelProp="label"
-                            loading={loading}
-                            onChange={(value) => void run(() => selectKey(value))}
-                        />
+                        {keys.length ? (
+                            <Select
+                                className="w-full"
+                                placeholder={t("account.selectKey")}
+                                value={selectedKeyId || undefined}
+                                options={options}
+                                optionLabelProp="label"
+                                loading={loading}
+                                onChange={(value) => void run(() => selectKey(value))}
+                            />
+                        ) : (
+                            <Alert type="info" showIcon message={t("account.noKeys")} />
+                        )}
                         <div className="mt-2 text-xs leading-5 text-stone-500">{t("account.keyDescription")}</div>
                     </div>
+
+                    {selectedKeyId ? (
+                        <div className="border-t border-stone-200 pt-4 dark:border-stone-800">
+                            <div className="mb-2 text-sm font-medium">{t("account.syncedModels", { count: syncedModels.length })}</div>
+                            {syncedModels.length ? (
+                                <div className="max-h-56 divide-y divide-stone-200 overflow-y-auto pr-1 dark:divide-stone-800">
+                                    {syncedModels.map((model) => (
+                                        <div key={model.name} className="flex min-w-0 items-center justify-between gap-3 py-2.5">
+                                            <span className="min-w-0 break-all text-sm">{model.name}</span>
+                                            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                                                {model.capabilities.map((capability) => (
+                                                    <Tag key={capability} className="m-0">
+                                                        {t(`account.modelCapabilities.${capability}`)}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-xs leading-5 text-stone-500">{t("account.noSyncedModels")}</div>
+                            )}
+                        </div>
+                    ) : null}
 
                     {error ? <Alert type="error" showIcon message={error} /> : null}
 
@@ -103,7 +142,7 @@ export function Usa0AccountModal() {
                         <Button type="text" danger icon={<LogOut className="size-4" />} loading={loading} onClick={() => void run(logout)}>
                             {t("account.logout")}
                         </Button>
-                        <Button icon={<RefreshCw className="size-4" />} disabled={!selectedKeyId} loading={loading} onClick={() => void run(refreshModels)}>
+                        <Button icon={<RefreshCw className="size-4" />} disabled={!selectedKeyId} loading={loading} onClick={() => void refresh()}>
                             {t("account.refreshModels")}
                         </Button>
                     </div>
